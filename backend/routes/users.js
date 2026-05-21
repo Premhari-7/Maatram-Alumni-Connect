@@ -2,6 +2,7 @@ import express from 'express';
 import User from '../models/User.js';
 import Post from '../models/Post.js';
 import Event from '../models/Event.js';
+import Notification from '../models/Notification.js';
 import { authMiddleware, adminMiddleware } from '../middleware/auth.js';
 import { uploadToCloudinary } from '../middleware/cloudinary.js';
 
@@ -114,6 +115,30 @@ router.get('/:id', authMiddleware, async (req, res) => {
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
+
+    const isOwner = req.user.id === user._id.toString();
+    const isAdmin = req.user.role === 'admin';
+    const isConnected = user.connections.some(conn => conn._id.toString() === req.user.id);
+    
+    if (user.isPrivate && !isOwner && !isAdmin && !isConnected) {
+      // Create a masked copy of the user profile
+      const maskedUser = user.toObject();
+      maskedUser.email = '••••••••@••••.•••';
+      maskedUser.profile = {
+        avatar: user.profile?.avatar || '',
+        cover: user.profile?.cover || '',
+        bio: 'This account is private.',
+        skills: [],
+        department: 'Private',
+        batch: 'Private',
+        company: 'Private',
+        jobTitle: 'Private',
+        socialLinks: { linkedin: '', github: '', twitter: '', website: '' }
+      };
+      maskedUser.isPrivateMasked = true;
+      return res.json(maskedUser);
+    }
+
     res.json(user);
   } catch (error) {
     res.status(500).json({ message: 'Server error fetching user profile' });
@@ -123,7 +148,7 @@ router.get('/:id', authMiddleware, async (req, res) => {
 // Update profile details
 router.put('/profile', authMiddleware, async (req, res) => {
   try {
-    const { avatar, cover, bio, skills, department, batch, company, jobTitle, socialLinks } = req.body;
+    const { avatar, cover, bio, skills, department, batch, company, jobTitle, gender, education, college, socialLinks, isPrivate, experience } = req.body;
 
     const user = await User.findById(req.user.id);
     if (!user) {
@@ -155,7 +180,12 @@ router.put('/profile', authMiddleware, async (req, res) => {
     if (batch !== undefined) user.profile.batch = batch;
     if (company !== undefined) user.profile.company = company;
     if (jobTitle !== undefined) user.profile.jobTitle = jobTitle;
+    if (gender !== undefined) user.profile.gender = gender;
+    if (education !== undefined) user.profile.education = education;
+    if (college !== undefined) user.profile.college = college;
     if (socialLinks !== undefined) user.profile.socialLinks = { ...user.profile.socialLinks, ...socialLinks };
+    if (isPrivate !== undefined) user.isPrivate = isPrivate;
+    if (experience !== undefined) user.profile.experience = experience;
 
     await user.save();
     
@@ -221,6 +251,19 @@ router.post('/connect/:id', authMiddleware, async (req, res) => {
       // Connect
       currentUser.connections.push(targetUserId);
       targetUser.connections.push(currentUserId);
+
+      // Create Notification
+      try {
+        const notif = new Notification({
+          recipient: targetUserId,
+          sender: currentUserId,
+          type: 'connection',
+          text: `${currentUser.name} connected with you`
+        });
+        await notif.save();
+      } catch (nErr) {
+        console.error('Notification creation failed for connection:', nErr);
+      }
     }
 
     await currentUser.save();

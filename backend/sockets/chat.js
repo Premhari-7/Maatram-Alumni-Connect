@@ -3,12 +3,22 @@ import Message from '../models/Message.js';
 // Map to store active socket mappings: userId -> socketId
 const userSocketMap = new Map();
 
+// Store io instance for external access
+let ioInstance = null;
+
 // Helper to get socket ID of a user
 export const getSocketIdByUserId = (userId) => {
   return userSocketMap.get(userId);
 };
 
+// Helper to get the io instance from routes
+export const getIO = () => {
+  return ioInstance;
+};
+
 export const initSocketHandler = (io) => {
+  ioInstance = io;
+
   io.on('connection', (socket) => {
     let currentUserId = null;
 

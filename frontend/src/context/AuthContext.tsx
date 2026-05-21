@@ -2,6 +2,17 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import axios from 'axios';
 import { useNotification } from './NotificationContext';
 
+export interface Experience {
+  _id?: string;
+  title: string;
+  company: string;
+  location: string;
+  startDate: string;
+  endDate: string;
+  current: boolean;
+  description: string;
+}
+
 export interface UserProfile {
   avatar: string;
   cover: string;
@@ -11,12 +22,16 @@ export interface UserProfile {
   batch: string;
   company: string;
   jobTitle: string;
+  gender?: string;
+  education?: string;
+  college?: string;
   socialLinks: {
     linkedin: string;
     github: string;
     twitter: string;
     website: string;
   };
+  experience?: Experience[];
 }
 
 export interface User {
@@ -28,6 +43,8 @@ export interface User {
   profile: UserProfile;
   connections: string[];
   savedPosts: string[];
+  reposts?: string[];
+  isPrivate?: boolean;
 }
 
 interface AuthContextProps {
@@ -140,10 +157,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           batch: 'Founders',
           company: 'Maatram Foundation',
           jobTitle: 'Chief Coordinator',
-          socialLinks: { linkedin: '#', github: '#', twitter: '#', website: 'https://maatramfoundation.org' }
+          gender: 'Female',
+          education: 'Master of Social Work',
+          college: 'Madras School of Social Work',
+          socialLinks: { linkedin: '#', github: '#', twitter: '#', website: 'https://maatramfoundation.org' },
+          experience: []
         },
         connections: ['alumni-1', 'student-1'],
-        savedPosts: []
+        savedPosts: [],
+        reposts: []
       },
       {
         id: 'alumni-1',
@@ -160,10 +182,36 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           batch: '2015-2019',
           company: 'Google',
           jobTitle: 'Software Engineer II',
-          socialLinks: { linkedin: '#', github: '#', twitter: '#', website: '#' }
+          gender: 'Male',
+          education: 'B.E. Computer Science',
+          college: 'College of Engineering, Guindy',
+          socialLinks: { linkedin: '#', github: '#', twitter: '#', website: '#' },
+          experience: [
+            {
+              _id: 'exp_1',
+              title: 'Software Engineer II',
+              company: 'Google',
+              location: 'Mountain View, CA',
+              startDate: '2022-03',
+              endDate: '',
+              current: true,
+              description: 'Working in Core Systems division on high-scale indexing service pipelines.'
+            },
+            {
+              _id: 'exp_2',
+              title: 'Software Engineer',
+              company: 'Cognizant',
+              location: 'Chennai, India',
+              startDate: '2019-06',
+              endDate: '2022-02',
+              current: false,
+              description: 'Built enterprise web apps using React, Angular, and Node.js for retail sector clients.'
+            }
+          ]
         },
         connections: ['student-1', 'admin-1'],
-        savedPosts: []
+        savedPosts: [],
+        reposts: []
       },
       {
         id: 'alumni-2',
@@ -180,10 +228,36 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           batch: '2016-2020',
           company: 'TechNova',
           jobTitle: 'Lead Product Designer',
-          socialLinks: { linkedin: '#', github: '#', twitter: '#', website: '#' }
+          gender: 'Female',
+          education: 'B.Des Product Design',
+          college: 'National Institute of Design',
+          socialLinks: { linkedin: '#', github: '#', twitter: '#', website: '#' },
+          experience: [
+            {
+              _id: 'exp_3',
+              title: 'Lead Product Designer',
+              company: 'TechNova',
+              location: 'Bangalore, India',
+              startDate: '2021-08',
+              endDate: '',
+              current: true,
+              description: 'Leading visual redesign of flagship mobile banking applications.'
+            },
+            {
+              _id: 'exp_4',
+              title: 'UI/UX Designer',
+              company: 'Zoho',
+              location: 'Chennai, India',
+              startDate: '2020-07',
+              endDate: '2021-07',
+              current: false,
+              description: 'Created wireframes, interactive prototypes, and design systems.'
+            }
+          ]
         },
         connections: [],
-        savedPosts: []
+        savedPosts: [],
+        reposts: []
       },
       {
         id: 'student-1',
@@ -200,10 +274,26 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           batch: '2023-2027',
           company: 'College Student',
           jobTitle: 'Intern',
-          socialLinks: { linkedin: '#', github: '#', twitter: '#', website: '#' }
+          gender: 'Male',
+          education: 'B.Tech Information Technology',
+          college: 'Madras Institute of Technology',
+          socialLinks: { linkedin: '#', github: '#', twitter: '#', website: '#' },
+          experience: [
+            {
+              _id: 'exp_5',
+              title: 'Web Developer Intern',
+              company: 'StartupGen',
+              location: 'Remote',
+              startDate: '2024-12',
+              endDate: '2025-04',
+              current: false,
+              description: 'Assisted in building responsive frontend features and API integrations.'
+            }
+          ]
         },
         connections: ['alumni-1', 'admin-1'],
-        savedPosts: []
+        savedPosts: [],
+        reposts: []
       }
     ];
     localStorage.setItem('mock_db_users', JSON.stringify(seed));
@@ -314,10 +404,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           batch: '',
           company: '',
           jobTitle: '',
-          socialLinks: { linkedin: '', github: '', twitter: '', website: '' }
+          gender: '',
+          education: '',
+          college: '',
+          socialLinks: { linkedin: '', github: '', twitter: '', website: '' },
+          experience: []
         },
         connections: [],
-        savedPosts: []
+        savedPosts: [],
+        reposts: []
       };
 
       mockUsers.push(newMockUser);
@@ -488,7 +583,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   // Sync state
   const refreshUser = async () => {
     const storedToken = localStorage.getItem('maatram_token');
-    if (!storedToken || isMockMode) return;
+    if (!storedToken) return;
+    if (isMockMode) {
+      const storedUser = localStorage.getItem('maatram_user');
+      if (storedUser) {
+        setUser(JSON.parse(storedUser));
+      }
+      return;
+    }
 
     try {
       const res = await axios.get(`${API_URL}/auth/me`);

@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion, useScroll, useTransform } from 'framer-motion';
 import { FiArrowRight, FiUsers, FiAward, FiBookOpen, FiActivity, FiMapPin, FiMail, FiPhone, FiCalendar } from 'react-icons/fi';
 import { Footer } from '../components/Footer';
 import { TiltCard } from '../components/TiltCard';
@@ -37,6 +37,55 @@ interface PublicEvent {
   location: string;
   registrations: string[];
 }
+
+interface Scroll3DSectionProps {
+  children: React.ReactNode;
+  id?: string;
+  style?: React.CSSProperties;
+}
+
+const Scroll3DSection = ({ children, id, style }: Scroll3DSectionProps) => {
+  const ref = useRef<HTMLDivElement>(null);
+  const { scrollYProgress } = useScroll({
+    target: ref,
+    offset: ["start end", "end start"]
+  });
+
+  // Gentle, smooth 3D perspective scroll — barely noticeable but premium feel
+  const rotateX = useTransform(scrollYProgress, [0, 0.3, 0.7, 1], [2, 0, 0, -2]);
+  const scale = useTransform(scrollYProgress, [0, 0.25, 0.75, 1], [0.99, 1, 1, 0.99]);
+  const y = useTransform(scrollYProgress, [0, 0.3, 0.7, 1], [20, 0, 0, -20]);
+
+  return (
+    <div
+      ref={ref}
+      id={id}
+      style={{
+        perspective: '1400px',
+        width: '100%',
+        boxSizing: 'border-box',
+        ...style
+      }}
+    >
+      <motion.div
+        style={{
+          rotateX,
+          scale,
+          y,
+          width: '100%',
+          height: '100%',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'center',
+          boxSizing: 'border-box',
+          transformOrigin: 'center center'
+        }}
+      >
+        {children}
+      </motion.div>
+    </div>
+  );
+};
 
 export const LandingPage = () => {
   const navigate = useNavigate();
@@ -92,7 +141,7 @@ export const LandingPage = () => {
   };
 
   return (
-    <div style={{ minHeight: '100vh', background: '#050505', overflowX: 'hidden' }}>
+    <div style={{ minHeight: '100vh', background: 'linear-gradient(180deg, #080808 0%, #0a0805 30%, #0d0b06 60%, #080808 100%)', overflowX: 'hidden' }}>
       
       {/* Top Navbar */}
       <header style={{
@@ -115,7 +164,7 @@ export const LandingPage = () => {
           
           <nav style={{ display: 'flex', gap: '30px', alignItems: 'center' }}>
             <a href="#about" onClick={(e) => handleScroll(e, 'about')} style={{ color: 'var(--color-text-gray)', textDecoration: 'none', fontSize: '14px', fontWeight: 500 }}>About</a>
-            <a href="#success" onClick={(e) => handleScroll(e, 'success')} style={{ color: 'var(--color-text-gray)', textDecoration: 'none', fontSize: '14px', fontWeight: 500 }}>Community</a>
+            <a href="#community" onClick={(e) => handleScroll(e, 'community')} style={{ color: 'var(--color-text-gray)', textDecoration: 'none', fontSize: '14px', fontWeight: 500 }}>Community</a>
             <button className="btn-primary" onClick={handleJoinClick} style={{ padding: '8px 18px', fontSize: '13px' }}>
               Portal Login <FiArrowRight />
             </button>
@@ -124,23 +173,35 @@ export const LandingPage = () => {
       </header>
 
       {/* Hero Section */}
-      <section style={{
-        position: 'relative',
-        padding: '100px 5% 80px 5%',
-        minHeight: '85vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center'
-      }}>
-        {/* Glow behind */}
+      <Scroll3DSection style={{ position: 'relative' }}>
+        <section style={{
+          position: 'relative',
+          padding: '120px 5% 80px 5%',
+          width: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center'
+        }}>
+        {/* Glow orbs behind hero */}
         <div style={{
           position: 'absolute',
-          width: '500px',
-          height: '500px',
+          width: '600px',
+          height: '600px',
           borderRadius: '50%',
-          background: 'radial-gradient(circle, rgba(255, 215, 0, 0.05) 0%, rgba(255, 215, 0, 0) 70%)',
-          top: '10%',
-          right: '10%',
+          background: 'radial-gradient(circle, rgba(255, 215, 0, 0.1) 0%, rgba(255, 180, 0, 0.03) 50%, rgba(255, 215, 0, 0) 70%)',
+          top: '5%',
+          right: '5%',
+          filter: 'blur(60px)',
+          pointerEvents: 'none'
+        }} />
+        <div style={{
+          position: 'absolute',
+          width: '400px',
+          height: '400px',
+          borderRadius: '50%',
+          background: 'radial-gradient(circle, rgba(255, 200, 0, 0.07) 0%, rgba(255, 215, 0, 0) 70%)',
+          bottom: '10%',
+          left: '5%',
           filter: 'blur(50px)',
           pointerEvents: 'none'
         }} />
@@ -250,7 +311,7 @@ export const LandingPage = () => {
             }}
           >
             <img 
-              src="/landing-tree.png" 
+              src="/landing-hero.png" 
               alt="Transformation through education" 
               style={{
                 width: '100%',
@@ -263,9 +324,11 @@ export const LandingPage = () => {
           </motion.div>
         </div>
       </section>
+      </Scroll3DSection>
 
       {/* About Section */}
-      <section id="about" style={{ padding: '80px 5%', borderTop: '1px solid rgba(255,215,0,0.05)', background: 'rgba(10,10,10,0.3)' }}>
+      <Scroll3DSection id="about" style={{ background: 'linear-gradient(180deg, rgba(15,12,5,0.6) 0%, rgba(10,10,10,0.4) 50%, rgba(15,12,5,0.6) 100%)', borderTop: '1px solid rgba(255,215,0,0.1)', scrollMarginTop: '72px' }}>
+        <section style={{ padding: '80px 5%', width: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center', boxSizing: 'border-box' }}>
         <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
           <div style={{ textAlign: 'center', marginBottom: '60px' }}>
             <span style={{ color: 'var(--color-yellow-primary)', fontSize: '12px', fontWeight: 600, letterSpacing: '3px', textTransform: 'uppercase' }}>About The Foundation</span>
@@ -312,9 +375,11 @@ export const LandingPage = () => {
           </div>
         </div>
       </section>
+      </Scroll3DSection>
 
       {/* Dynamic Alumni Spotlight */}
-      <section id="success" style={{ padding: '80px 5%', borderTop: '1px solid rgba(255,215,0,0.05)', background: 'rgba(10,10,10,0.3)' }}>
+      <Scroll3DSection id="community" style={{ background: 'linear-gradient(180deg, rgba(10,10,10,0.4) 0%, rgba(15,12,5,0.5) 50%, rgba(10,10,10,0.4) 100%)', borderTop: '1px solid rgba(255,215,0,0.1)', scrollMarginTop: '72px' }}>
+        <section style={{ padding: '80px 5%', width: '100%', boxSizing: 'border-box' }}>
         <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
           <div style={{ textAlign: 'center', marginBottom: '60px' }}>
             <span style={{ color: 'var(--color-yellow-primary)', fontSize: '12px', fontWeight: 600, letterSpacing: '3px', textTransform: 'uppercase' }}>Alumni Spotlight</span>
@@ -365,52 +430,61 @@ export const LandingPage = () => {
           )}
         </div>
       </section>
+      </Scroll3DSection>
 
       {/* Dynamic Upcoming Events */}
       {upcomingEvents.length > 0 && (
-        <section style={{ padding: '80px 5%', borderTop: '1px solid rgba(255,215,0,0.05)' }}>
-          <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
-            <div style={{ textAlign: 'center', marginBottom: '60px' }}>
-              <span style={{ color: 'var(--color-yellow-primary)', fontSize: '12px', fontWeight: 600, letterSpacing: '3px', textTransform: 'uppercase' }}>Upcoming Events</span>
-              <h2 style={{ fontSize: '36px', fontWeight: 800, marginTop: '8px', fontFamily: 'var(--font-title)' }}>Join Our Next Gathering</h2>
+        <Scroll3DSection style={{ borderTop: '1px solid rgba(255,215,0,0.05)' }}>
+          <section style={{ padding: '80px 5%', width: '100%', boxSizing: 'border-box' }}>
+            <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
+              <div style={{ textAlign: 'center', marginBottom: '60px' }}>
+                <span style={{ color: 'var(--color-yellow-primary)', fontSize: '12px', fontWeight: 600, letterSpacing: '3px', textTransform: 'uppercase' }}>Upcoming Events</span>
+                <h2 style={{ fontSize: '36px', fontWeight: 800, marginTop: '8px', fontFamily: 'var(--font-title)' }}>Join Our Next Gathering</h2>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(upcomingEvents.length, 3)}, 1fr)`, gap: '24px' }} className="testimonials-grid">
+                {upcomingEvents.map((event) => (
+                  <TiltCard key={event._id} style={{ padding: '30px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                      <span style={{
+                        fontSize: '10px', fontWeight: 700, textTransform: 'uppercase',
+                        color: 'var(--color-yellow-primary)', background: 'rgba(255,215,0,0.08)',
+                        padding: '4px 10px', borderRadius: '20px', letterSpacing: '1px',
+                        border: '1px solid rgba(255,215,0,0.15)'
+                      }}>{event.type}</span>
+                      <span style={{ fontSize: '12px', color: 'var(--color-text-gray)' }}>
+                        <FiCalendar style={{ marginRight: '4px', verticalAlign: 'middle' }} />
+                        {new Date(event.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      </span>
+                    </div>
+                    <h3 style={{ fontSize: '18px', fontWeight: 700, margin: 0 }}>{event.title}</h3>
+                    <p style={{ fontSize: '13px', color: 'var(--color-text-gray)', lineHeight: '1.6' }}>
+                      {event.description.length > 120 ? event.description.substring(0, 120) + '...' : event.description}
+                    </p>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'auto' }}>
+                      <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>{event.location}</span>
+                      <span style={{ fontSize: '11px', color: 'var(--color-yellow-primary)' }}>
+                        {event.registrations.length} registered
+                      </span>
+                    </div>
+                  </TiltCard>
+                ))}
+              </div>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(upcomingEvents.length, 3)}, 1fr)`, gap: '24px' }} className="testimonials-grid">
-              {upcomingEvents.map((event) => (
-                <TiltCard key={event._id} style={{ padding: '30px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <span style={{
-                      fontSize: '10px', fontWeight: 700, textTransform: 'uppercase',
-                      color: 'var(--color-yellow-primary)', background: 'rgba(255,215,0,0.08)',
-                      padding: '4px 10px', borderRadius: '20px', letterSpacing: '1px',
-                      border: '1px solid rgba(255,215,0,0.15)'
-                    }}>{event.type}</span>
-                    <span style={{ fontSize: '12px', color: 'var(--color-text-gray)' }}>
-                      <FiCalendar style={{ marginRight: '4px', verticalAlign: 'middle' }} />
-                      {new Date(event.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
-                    </span>
-                  </div>
-                  <h3 style={{ fontSize: '18px', fontWeight: 700, margin: 0 }}>{event.title}</h3>
-                  <p style={{ fontSize: '13px', color: 'var(--color-text-gray)', lineHeight: '1.6' }}>
-                    {event.description.length > 120 ? event.description.substring(0, 120) + '...' : event.description}
-                  </p>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'auto' }}>
-                    <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>{event.location}</span>
-                    <span style={{ fontSize: '11px', color: 'var(--color-yellow-primary)' }}>
-                      {event.registrations.length} registered
-                    </span>
-                  </div>
-                </TiltCard>
-              ))}
-            </div>
-          </div>
-        </section>
+          </section>
+        </Scroll3DSection>
       )}
 
       {/* Upgraded Cinematic Footer Section */}
-      <Footer />
+      <Scroll3DSection style={{ borderTop: '1px solid rgba(255,215,0,0.05)' }}>
+        <Footer />
+      </Scroll3DSection>
 
-      {/* CSS overrides for simple animations and layout configurations */}
+      {/* CSS overrides for smooth scroll, 3D effects, and layout configurations */}
       <style>{`
+        html {
+          scroll-behavior: smooth;
+        }
+
         @keyframes spin {
           from { transform: rotate(0deg); }
           to { transform: rotate(360deg); }
@@ -439,7 +513,7 @@ export const LandingPage = () => {
             grid-template-columns: 1fr 1fr !important;
           }
           .hero-grid h1 {
-            fontSize: 40px !important;
+            font-size: 40px !important;
           }
         }
       `}</style>

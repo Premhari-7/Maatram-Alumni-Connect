@@ -58,6 +58,18 @@ const PostSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
   }],
+  reactions: [{
+    user: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true
+    },
+    type: {
+      type: String,
+      enum: ['like', 'funny', 'celebrate'],
+      default: 'like'
+    }
+  }],
   comments: [CommentSchema],
   sharesCount: {
     type: Number,

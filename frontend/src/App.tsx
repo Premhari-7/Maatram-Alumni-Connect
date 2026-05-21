@@ -4,7 +4,6 @@ import { LandingPage } from './pages/LandingPage';
 import { AuthPage } from './pages/AuthPage';
 import { DashboardLayout } from './components/DashboardLayout';
 import { Dashboard } from './pages/Dashboard';
-import { Feed } from './pages/Feed';
 import { Connections } from './pages/Connections';
 import { Chat } from './pages/Chat';
 import { Events } from './pages/Events';
@@ -23,7 +22,6 @@ function App() {
         {/* Dashboard Protected Layout & Sub-routes */}
         <Route path="/dashboard" element={<DashboardLayout />}>
           <Route index element={<Dashboard />} />
-          <Route path="feed" element={<Feed />} />
           <Route path="connections" element={<Connections />} />
           <Route path="chat" element={<Chat />} />
           <Route path="events" element={<Events />} />

@@ -4,20 +4,20 @@
   --font-body: 'Inter', sans-serif;
 
   /* Colors */
-  --color-bg-deep: #050505;
-  --color-bg-dark: #0f0f0f;
-  --color-bg-card: rgba(15, 15, 15, 0.65);
-  --color-border-glass: rgba(255, 215, 0, 0.12);
-  --color-border-glass-hover: rgba(255, 215, 0, 0.35);
+  --color-bg-deep: #060606;
+  --color-bg-dark: #111111;
+  --color-bg-card: rgba(18, 16, 10, 0.7);
+  --color-border-glass: rgba(255, 215, 0, 0.15);
+  --color-border-glass-hover: rgba(255, 215, 0, 0.4);
   
   --color-yellow-primary: #ffd700;
-  --color-yellow-hover: #ffaa00;
-  --color-yellow-glow: rgba(255, 215, 0, 0.4);
-  --color-yellow-glow-subtle: rgba(255, 215, 0, 0.15);
+  --color-yellow-hover: #ffb800;
+  --color-yellow-glow: rgba(255, 215, 0, 0.5);
+  --color-yellow-glow-subtle: rgba(255, 215, 0, 0.2);
 
   --color-text-white: #ffffff;
-  --color-text-gray: #a0a0a0;
-  --color-text-muted: #666666;
+  --color-text-gray: #c0c0c0;
+  --color-text-muted: #888888;
 }
 
 * {
@@ -62,12 +62,12 @@ h1, h2, h3, h4, h5, h6 {
 
 /* Glassmorphism Styles */
 .glass-panel {
-  background: var(--color-bg-card);
+  background: rgba(18, 16, 10, 0.7);
   backdrop-filter: blur(18px) saturate(160%);
   -webkit-backdrop-filter: blur(18px) saturate(160%);
   border: 1px solid var(--color-border-glass);
   border-radius: 16px;
-  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.45);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.45), inset 0 0 30px rgba(255, 215, 0, 0.02);
 }
 
 .glass-card {
@@ -214,8 +214,8 @@ h1, h2, h3, h4, h5, h6 {
   left: 0;
   width: 100vw;
   height: 100vh;
-  background: rgba(0, 0, 0, 0.75);
-  backdrop-filter: blur(8px);
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(5px);
   z-index: 10000;
   display: flex;
   justify-content: center;
@@ -236,3 +236,39 @@ h1, h2, h3, h4, h5, h6 {
   from { transform: scale(0.85); opacity: 0; }
   to { transform: scale(1); opacity: 1; }
 }
+
+/* Reaction Popover */
+.reaction-popover {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  transform: translateY(-8px);
+  background: rgba(10, 10, 10, 0.95);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--color-yellow-primary);
+  border-radius: 30px;
+  padding: 6px 14px;
+  display: flex;
+  gap: 14px;
+  z-index: 100;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.65), 0 0 15px var(--color-yellow-glow-subtle);
+  animation: reactionPopIn 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes reactionPopIn {
+  from { transform: translateY(0px) scale(0.8); opacity: 0; }
+  to { transform: translateY(-8px) scale(1); opacity: 1; }
+}
+
+.reaction-popover-item {
+  font-size: 24px;
+  cursor: pointer;
+  transition: transform 0.15s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  user-select: none;
+}
+
+.reaction-popover-item:hover {
+  transform: scale(1.4) translateY(-4px);
+}
+

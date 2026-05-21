@@ -29,7 +29,6 @@ export const Sidebar = () => {
 
   const navItems = [
     { name: 'Dashboard', path: '/dashboard', icon: <FiGrid size={18} />, end: true },
-    { name: 'Feed', path: '/dashboard/feed', icon: <FiFileText size={18} /> },
     { name: 'Connections', path: '/dashboard/connections', icon: <FiUsers size={18} /> },
     { name: 'Messages', path: '/dashboard/chat', icon: <FiMessageSquare size={18} /> },
     { name: 'Events', path: '/dashboard/events', icon: <FiCalendar size={18} /> },

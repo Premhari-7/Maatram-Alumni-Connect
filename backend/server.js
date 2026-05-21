@@ -12,6 +12,8 @@ import postRoutes from './routes/posts.js';
 import messageRoutes from './routes/messages.js';
 import eventRoutes from './routes/events.js';
 import chatbotRoutes from './routes/chatbot.js';
+import notificationRoutes from './routes/notifications.js';
+import connectionRoutes from './routes/connections.js';
 
 // Import socket handler
 import { initSocketHandler } from './sockets/chat.js';
@@ -53,6 +55,8 @@ app.use('/api/posts', postRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/events', eventRoutes);
 app.use('/api/chatbot', chatbotRoutes);
+app.use('/api/notifications', notificationRoutes);
+app.use('/api/connections', connectionRoutes);
 
 // Base Route
 app.get('/', (req, res) => {

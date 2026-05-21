@@ -45,8 +45,8 @@ export const FloatingCapLogo = ({ size = 38 }: FloatingCapLogoProps) => {
         style={{ transformOrigin: 'center center', width: '100%', height: '100%' }}
       >
         <img 
-          src="/cap.png" 
-          alt="Maatram Cap Logo" 
+          src="/logo-main.png" 
+          alt="Maatram Logo" 
           style={{ 
             width: '100%', 
             height: '100%', 

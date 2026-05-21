@@ -330,7 +330,7 @@ export const Chat = () => {
               ) : (
                 chatMessages.map(msg => {
                   const mId = msg._id || msg.id;
-                  const isSent = msg.sender === user?.id;
+                  const isSent = (msg.sender?._id || msg.sender?.id || msg.sender) === (user?.id || (user as any)?._id);
 
                   return (
                     <div

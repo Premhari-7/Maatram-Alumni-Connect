@@ -2,9 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth, API_URL } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
-import { FiUsers, FiPlus, FiHeart, FiMessageSquare, FiSend, FiBookmark, FiTrash2, FiShare2, FiCopy, FiLinkedin, FiTwitter, FiX } from 'react-icons/fi';
+import { FiUsers, FiPlus, FiHeart, FiMessageSquare, FiSend, FiBookmark, FiTrash2, FiShare2, FiCopy, FiLinkedin, FiTwitter, FiX, FiSearch, FiEdit3, FiCheck } from 'react-icons/fi';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
+import { UserProfilePopup } from '../components/UserProfilePopup';
 
 interface Reply {
   _id: string;
@@ -48,7 +49,7 @@ interface Post {
   };
   caption: string;
   image: string;
-  likes: string[];
+  likes: any[];
   comments: Comment[];
   sharesCount: number;
   createdAt: string;
@@ -68,11 +69,21 @@ export const Feed = () => {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [showPostConfirm, setShowPostConfirm] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [sharingPost, setSharingPost] = useState<Post | null>(null);
+
+  // Search & Filtering states
+  const [searchQuery, setSearchQuery] = useState('');
+  const [activeFilter, setActiveFilter] = useState<'all' | 'my' | 'alumni' | 'student' | 'opportunities'>('all');
+
+  // Edit / Delete / Preview details states
+  const [editingPostId, setEditingPostId] = useState<string | null>(null);
+  const [postToDelete, setPostToDelete] = useState<string | null>(null);
+  const [selectedPreviewUserId, setSelectedPreviewUserId] = useState<string | null>(null);
 
   // React useEffect Scroll Lock
   useEffect(() => {
-    const isAnyModalOpen = isPostModalOpen || showPostConfirm || (sharingPost !== null);
+    const isAnyModalOpen = isPostModalOpen || showPostConfirm || showSuccessModal || (sharingPost !== null) || (postToDelete !== null) || (selectedPreviewUserId !== null);
     if (isAnyModalOpen) {
       document.body.style.overflow = 'hidden';
     } else {
@@ -81,7 +92,7 @@ export const Feed = () => {
     return () => {
       document.body.style.overflow = '';
     };
-  }, [isPostModalOpen, showPostConfirm, sharingPost]);
+  }, [isPostModalOpen, showPostConfirm, showSuccessModal, sharingPost, postToDelete, selectedPreviewUserId]);
 
   // Comments
   const [activeCommentsPostId, setActiveCommentsPostId] = useState<string | null>(null);
@@ -215,66 +226,120 @@ export const Feed = () => {
     reader.readAsDataURL(file);
   };
 
+  const handleClosePostModal = () => {
+    setIsPostModalOpen(false);
+    setEditingPostId(null);
+    setCaption('');
+    setMediaPreview('');
+    setMediaFile(null);
+  };
+
+  const handleEditClick = (post: Post) => {
+    setEditingPostId(post._id);
+    setCaption(post.caption);
+    setMediaPreview(post.image || '');
+    setIsPostModalOpen(true);
+  };
+
   const submitPost = async () => {
     setShowPostConfirm(false);
     
     if (isMockMode) {
-      const newPost: Post = {
-        _id: 'post_' + Date.now(),
-        author: {
-          _id: user?.id || '',
-          name: user?.name || '',
-          role: user?.role || '',
-          profile: {
-            avatar: user?.profile?.avatar || '',
-            batch: user?.profile?.batch || '',
-            company: user?.profile?.company || ''
+      if (editingPostId) {
+        const updated = posts.map(p => {
+          if (p._id === editingPostId) {
+            return {
+              ...p,
+              caption,
+              image: mediaPreview || ''
+            };
           }
-        },
-        caption,
-        image: mediaPreview || '',
-        likes: [],
-        comments: [],
-        sharesCount: 0,
-        createdAt: new Date().toISOString()
-      };
-
-      const updated = [newPost, ...posts];
-      setPosts(updated);
-      localStorage.setItem('mock_db_posts', JSON.stringify(updated));
-      setCaption('');
-      setMediaFile(null);
-      setMediaPreview('');
-      setIsPostModalOpen(false);
-      showNotification('Post Created', 'Your post has been successfully shared.', 'success');
-    } else {
-      setIsUploading(true);
-      setUploadProgress(0);
-      try {
-        const res = await axios.post(
-          `${API_URL}/posts`,
-          { caption, image: mediaPreview },
-          {
-            headers: { Authorization: `Bearer ${token}` },
-            onUploadProgress: (progressEvent) => {
-              const total = progressEvent.total || (progressEvent as any).bytesTotal || 0;
-              if (total > 0) {
-                const current = progressEvent.loaded;
-                const percent = Math.round((current * 100) / total);
-                setUploadProgress(percent);
-              }
+          return p;
+        });
+        setPosts(updated);
+        localStorage.setItem('mock_db_posts', JSON.stringify(updated));
+        setCaption('');
+        setMediaFile(null);
+        setMediaPreview('');
+        setEditingPostId(null);
+        setIsPostModalOpen(false);
+        showNotification('Post Updated', 'Your post has been successfully updated.', 'success');
+      } else {
+        const newPost: Post = {
+          _id: 'post_' + Date.now(),
+          author: {
+            _id: user?.id || '',
+            name: user?.name || '',
+            role: user?.role || '',
+            profile: {
+              avatar: user?.profile?.avatar || '',
+              batch: user?.profile?.batch || '',
+              company: user?.profile?.company || ''
             }
-          }
-        );
-        setPosts(prev => [res.data, ...prev]);
+          },
+          caption,
+          image: mediaPreview || '',
+          likes: [],
+          comments: [],
+          sharesCount: 0,
+          createdAt: new Date().toISOString()
+        };
+
+        const updated = [newPost, ...posts];
+        setPosts(updated);
+        localStorage.setItem('mock_db_posts', JSON.stringify(updated));
         setCaption('');
         setMediaFile(null);
         setMediaPreview('');
         setIsPostModalOpen(false);
-        showNotification('Post Created', 'Your post has been successfully shared.', 'success');
-      } catch (err) {
-        console.error('Failed to create post:', err);
-        showNotification('Error', 'Failed to create post', 'error');
+        setShowSuccessModal(true);
+      }
+    } else {
+      setIsUploading(true);
+      setUploadProgress(0);
+      try {
+        if (editingPostId) {
+          const res = await axios.put(
+            `${API_URL}/posts/${editingPostId}`,
+            { caption, image: mediaPreview },
+            {
+              headers: { Authorization: `Bearer ${token}` }
+            }
+          );
+          setPosts(prev => prev.map(p => p._id === editingPostId ? res.data : p));
+          setCaption('');
+          setMediaFile(null);
+          setMediaPreview('');
+          setEditingPostId(null);
+          setIsPostModalOpen(false);
+          showNotification('Post Updated', 'Your post has been successfully updated.', 'success');
+        } else {
+          const res = await axios.post(
+            `${API_URL}/posts`,
+            { caption, image: mediaPreview },
+            {
+              headers: { Authorization: `Bearer ${token}` },
+              onUploadProgress: (progressEvent) => {
+                const total = progressEvent.total || (progressEvent as any).bytesTotal || 0;
+                if (total > 0) {
+                  const current = progressEvent.loaded;
+                  const percent = Math.round((current * 100) / total);
+                  setUploadProgress(percent);
+                }
+              }
+            }
+          );
+          setPosts(prev => [res.data, ...prev]);
+          setCaption('');
+          setMediaFile(null);
+          setMediaPreview('');
+          setIsPostModalOpen(false);
+          setShowSuccessModal(true);
+        }
+      } catch (err: any) {
+        console.error('Failed to save post:', err);
+        const errMsg = err.response?.data?.message || err.message || 'Failed to save post';
+        showNotification('Error', errMsg, 'error');
       } finally {
         setIsUploading(false);
         setUploadProgress(null);
@@ -408,6 +473,37 @@ export const Feed = () => {
     }
   };
 
+  // Real-time search and filter algorithm
+  const filteredPosts = posts.filter(post => {
+    // 1. Search Query filter
+    const matchesSearch = 
+      post.caption.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      post.author.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      post.author.role.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (post.author.profile?.company && post.author.profile.company.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (post.author.profile?.batch && post.author.profile.batch.toLowerCase().includes(searchQuery.toLowerCase()));
+
+    if (!matchesSearch) return false;
+
+    // 2. Active Filter Tab
+    const currentUserId = user?.id || (user as any)?._id;
+    if (activeFilter === 'my') {
+      return post.author._id === currentUserId || (post.author as any).id === currentUserId;
+    }
+    if (activeFilter === 'alumni') {
+      return post.author.role === 'alumni';
+    }
+    if (activeFilter === 'student') {
+      return post.author.role === 'student';
+    }
+    if (activeFilter === 'opportunities') {
+      const keywords = ['hiring', 'job', 'intern', 'career', 'webinar', 'opportunity', 'referral', 'recruiting', 'opening', 'mentor', 'session'];
+      return keywords.some(kw => post.caption.toLowerCase().includes(kw));
+    }
+
+    return true;
+  });
+
   const handleShare = async (postId: string) => {
     if (isMockMode) {
       const updated = posts.map(p => {
@@ -444,7 +540,13 @@ export const Feed = () => {
           </p>
         </div>
         
-        <button className="btn-primary" onClick={() => setIsPostModalOpen(true)}>
+        <button className="btn-primary" onClick={() => {
+          setEditingPostId(null);
+          setCaption('');
+          setMediaPreview('');
+          setMediaFile(null);
+          setIsPostModalOpen(true);
+        }}>
           <FiPlus size={18} /> Share Update
         </button>
       </div>
@@ -514,14 +616,85 @@ export const Feed = () => {
 
         {/* Right column: Main Feed stream list */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          
+          {/* Search bar & Filter tabs */}
+          <div className="glass-panel" style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '14px', borderColor: 'rgba(255, 215, 0, 0.1)' }}>
+            <div style={{ display: 'flex', gap: '10px', alignItems: 'center', background: 'rgba(5,5,5,0.7)', border: '1px solid var(--color-border-glass)', borderRadius: '8px', padding: '8px 14px' }}>
+              <FiSearch style={{ color: 'var(--color-yellow-primary)' }} size={18} />
+              <input
+                type="text"
+                placeholder="Search posts by keyword, author, role, company..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#ffffff',
+                  outline: 'none',
+                  width: '100%',
+                  fontSize: '13.5px'
+                }}
+              />
+              {searchQuery && (
+                <button onClick={() => setSearchQuery('')} style={{ background: 'none', border: 'none', color: 'var(--color-text-gray)', cursor: 'pointer' }}>
+                  <FiX size={16} />
+                </button>
+              )}
+            </div>
+
+            {/* Filter pills */}
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', fontSize: '12px' }}>
+              {[
+                { id: 'all', label: 'All Updates' },
+                { id: 'my', label: 'My Posts' },
+                { id: 'alumni', label: 'Alumni Updates' },
+                { id: 'student', label: 'Scholar Posts' },
+                { id: 'opportunities', label: 'Opportunities' }
+              ].map(pill => {
+                const isActive = activeFilter === pill.id;
+                return (
+                  <button
+                    key={pill.id}
+                    onClick={() => setActiveFilter(pill.id as any)}
+                    style={{
+                      padding: '6px 12px',
+                      borderRadius: '6px',
+                      border: isActive ? '1px solid var(--color-yellow-primary)' : '1px solid rgba(255,255,255,0.1)',
+                      background: isActive ? 'var(--color-yellow-primary)' : 'rgba(255,255,255,0.02)',
+                      color: isActive ? '#000000' : 'var(--color-text-gray)',
+                      cursor: 'pointer',
+                      fontWeight: isActive ? 600 : 500,
+                      transition: 'all 0.2s ease',
+                      boxShadow: isActive ? '0 0 10px rgba(255,215,0,0.15)' : 'none'
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!isActive) {
+                        e.currentTarget.style.color = '#ffffff';
+                        e.currentTarget.style.borderColor = 'rgba(255,215,0,0.3)';
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!isActive) {
+                        e.currentTarget.style.color = 'var(--color-text-gray)';
+                        e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)';
+                      }
+                    }}
+                  >
+                    {pill.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           {loading ? (
-            <div style={{ color: 'var(--color-text-gray)', fontSize: '14px' }}>Loading posts...</div>
-          ) : posts.length === 0 ? (
-            <div className="glass-panel" style={{ padding: '40px', textAlign: 'center', color: 'var(--color-text-gray)' }}>
-              No updates available in the community.
+            <div style={{ color: 'var(--color-text-gray)', fontSize: '14px' }}>Loading feed...</div>
+          ) : filteredPosts.length === 0 ? (
+            <div className="glass-panel" style={{ padding: '35px', textAlign: 'center', color: 'var(--color-text-gray)' }}>
+              {searchQuery || activeFilter !== 'all' ? 'No matches found. Try modifying your search or filters.' : 'No posts found. Be the first to share an update!'}
             </div>
           ) : (
-            posts.map(post => {
+            filteredPosts.map(post => {
               const isLiked = user ? post.likes.includes(user.id) || post.likes.includes((user as any)._id) : false;
               const isSaved = user?.savedPosts?.includes(post._id) || false;
               const authorMeta = post.author.profile?.company ? `${post.author.role === 'alumni' ? 'Alumni' : 'Student'} - ${post.author.profile.company}` : `${post.author.role === 'alumni' ? 'Alumni' : 'Student'}`;
@@ -540,8 +713,10 @@ export const Feed = () => {
                   }}
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <Link to={`/dashboard/profile/${post.author._id || (post.author as any).id}`} style={{ textDecoration: 'none' }}>
-                      <div style={{ display: 'flex', gap: '12px', alignItems: 'center', cursor: 'pointer' }}>
+                    <div 
+                      style={{ display: 'flex', gap: '12px', alignItems: 'center', cursor: 'pointer' }}
+                      onClick={() => setSelectedPreviewUserId(post.author._id || (post.author as any).id)}
+                    >
                       <img
                         src={post.author.profile?.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100'}
                         alt={post.author.name}
@@ -554,32 +729,61 @@ export const Feed = () => {
                         }}
                       />
                       <div>
-                        <h4 style={{ fontSize: '14px', fontWeight: 700, color: '#ffffff' }}>
+                        <h4 
+                          style={{ fontSize: '14px', fontWeight: 700, color: '#ffffff' }}
+                          onMouseEnter={(e) => e.currentTarget.style.color = 'var(--color-yellow-primary)'}
+                          onMouseLeave={(e) => e.currentTarget.style.color = '#ffffff'}
+                        >
                           {post.author.name}
                         </h4>
                         <span style={{ fontSize: '11px', color: 'var(--color-text-gray)' }}>
                           {authorMeta}{batchMeta}
                         </span>
                       </div>
-                      </div>
-                    </Link>
+                    </div>
                     
-                    {/* Delete action if allowed */}
-                    {(user?.role === 'admin' || user?.id === post.author._id) && (
-                      <button
-                        onClick={() => handleDeletePost(post._id)}
-                        style={{
-                          background: 'none',
-                          border: 'none',
-                          color: 'var(--color-text-muted)',
-                          cursor: 'pointer'
-                        }}
-                        onMouseEnter={(e) => e.currentTarget.style.color = '#ff4444'}
-                        onMouseLeave={(e) => e.currentTarget.style.color = 'var(--color-text-muted)'}
-                      >
-                        <FiTrash2 size={16} />
-                      </button>
-                    )}
+                    {/* Edit & Delete options if Admin or Creator */}
+                    <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                      {/* Edit Option (Creator only) */}
+                      {(user?.id === post.author._id || (user as any)?._id === post.author._id) && (
+                        <button
+                          onClick={() => handleEditClick(post)}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: 'var(--color-text-muted)',
+                            cursor: 'pointer',
+                            transition: 'color 0.2s ease',
+                            display: 'flex',
+                            alignItems: 'center'
+                          }}
+                          onMouseEnter={(e) => e.currentTarget.style.color = 'var(--color-yellow-primary)'}
+                          onMouseLeave={(e) => e.currentTarget.style.color = 'var(--color-text-muted)'}
+                        >
+                          <FiEdit3 size={15} />
+                        </button>
+                      )}
+                      
+                      {/* Delete Option (Creator or Admin) */}
+                      {(user?.role === 'admin' || user?.id === post.author._id || (user as any)?._id === post.author._id) && (
+                        <button
+                          onClick={() => setPostToDelete(post._id)}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: 'var(--color-text-muted)',
+                            cursor: 'pointer',
+                            transition: 'color 0.2s ease',
+                            display: 'flex',
+                            alignItems: 'center'
+                          }}
+                          onMouseEnter={(e) => e.currentTarget.style.color = '#ff4444'}
+                          onMouseLeave={(e) => e.currentTarget.style.color = 'var(--color-text-muted)'}
+                        >
+                          <FiTrash2 size={15} />
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   <p style={{ fontSize: '14px', color: '#e0e0e0', lineHeight: '1.6' }}>
@@ -728,13 +932,16 @@ export const Feed = () => {
                             return (
                               <div key={comment._id || index} style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                 <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start', fontSize: '13px' }}>
-                                  <Link to={`/dashboard/profile/${comment.user?._id || (comment.user as any)?.id}`}>
+                                  <div 
+                                    style={{ cursor: 'pointer' }}
+                                    onClick={() => setSelectedPreviewUserId(comment.user?._id || (comment.user as any)?.id)}
+                                  >
                                     <img
                                       src={comment.user?.profile?.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100'}
                                       alt={comment.user?.name}
                                       style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover', border: '1px solid rgba(255,215,0,0.15)' }}
                                     />
-                                  </Link>
+                                  </div>
                                   <div style={{ flex: 1 }}>
                                     <div style={{
                                       background: 'rgba(255,255,255,0.03)',
@@ -742,9 +949,14 @@ export const Feed = () => {
                                       borderRadius: '12px',
                                       border: '1px solid rgba(255,255,255,0.02)'
                                     }}>
-                                      <Link to={`/dashboard/profile/${comment.user?._id || (comment.user as any)?.id}`} style={{ textDecoration: 'none' }}>
-                                        <h5 style={{ fontWeight: 700, color: 'var(--color-yellow-primary)', display: 'inline', marginRight: '6px', margin: 0 }}>{comment.user?.name}</h5>
-                                      </Link>
+                                      <span 
+                                        style={{ fontWeight: 700, color: 'var(--color-yellow-primary)', marginRight: '6px', cursor: 'pointer', fontSize: '13px' }}
+                                        onClick={() => setSelectedPreviewUserId(comment.user?._id || (comment.user as any)?.id)}
+                                        onMouseEnter={(e) => e.currentTarget.style.textDecoration = 'underline'}
+                                        onMouseLeave={(e) => e.currentTarget.style.textDecoration = 'none'}
+                                      >
+                                        {comment.user?.name}
+                                      </span>
                                       <p style={{ color: '#e0e0e0', marginTop: '2px', display: 'inline', margin: 0 }}>{comment.text}</p>
                                     </div>
                                     
@@ -798,25 +1010,33 @@ export const Feed = () => {
                                   <div style={{ paddingLeft: '42px', display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '4px' }}>
                                     {commentReplies.map((reply, rIdx) => (
                                       <div key={reply._id || rIdx} style={{ display: 'flex', gap: '8px', alignItems: 'flex-start', fontSize: '12px' }}>
-                                        <Link to={`/dashboard/profile/${reply.user?._id || (reply.user as any)?.id}`}>
-                                          <img
-                                            src={reply.user?.profile?.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100'}
-                                            alt={reply.user?.name}
-                                            style={{ width: '24px', height: '24px', borderRadius: '50%', objectFit: 'cover' }}
-                                          />
-                                        </Link>
-                                        <div style={{ flex: 1 }}>
-                                          <div style={{
-                                            background: 'rgba(255,255,255,0.015)',
-                                            padding: '6px 10px',
-                                            borderRadius: '10px',
-                                            border: '1px solid rgba(255,255,255,0.01)'
-                                          }}>
-                                            <Link to={`/dashboard/profile/${reply.user?._id || (reply.user as any)?.id}`} style={{ textDecoration: 'none' }}>
-                                              <h6 style={{ fontWeight: 700, color: 'var(--color-yellow-primary)', display: 'inline', marginRight: '6px', margin: 0 }}>{reply.user?.name}</h6>
-                                            </Link>
-                                            <p style={{ color: '#d0d0d0', margin: 0, display: 'inline' }}>{reply.text}</p>
-                                          </div>
+                                         <div 
+                                           style={{ cursor: 'pointer' }}
+                                           onClick={() => setSelectedPreviewUserId(reply.user?._id || (reply.user as any)?.id)}
+                                         >
+                                           <img
+                                             src={reply.user?.profile?.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100'}
+                                             alt={reply.user?.name}
+                                             style={{ width: '24px', height: '24px', borderRadius: '50%', objectFit: 'cover' }}
+                                           />
+                                         </div>
+                                         <div style={{ flex: 1 }}>
+                                           <div style={{
+                                             background: 'rgba(255,255,255,0.015)',
+                                             padding: '6px 10px',
+                                             borderRadius: '10px',
+                                             border: '1px solid rgba(255,255,255,0.01)'
+                                           }}>
+                                             <span 
+                                               style={{ fontWeight: 700, color: 'var(--color-yellow-primary)', marginRight: '6px', cursor: 'pointer', fontSize: '12px' }}
+                                               onClick={() => setSelectedPreviewUserId(reply.user?._id || (reply.user as any)?.id)}
+                                               onMouseEnter={(e) => e.currentTarget.style.textDecoration = 'underline'}
+                                               onMouseLeave={(e) => e.currentTarget.style.textDecoration = 'none'}
+                                             >
+                                               {reply.user?.name}
+                                             </span>
+                                             <p style={{ color: '#d0d0d0', margin: 0, display: 'inline' }}>{reply.text}</p>
+                                           </div>
                                           <div style={{ fontSize: '9.5px', color: 'var(--color-text-muted)', marginTop: '2px', paddingLeft: '2px' }}>
                                             {reply.createdAt ? new Date(reply.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric' }) : 'Just now'}
                                           </div>
@@ -917,7 +1137,7 @@ export const Feed = () => {
       {/* Modal post creator */}
       <AnimatePresence>
         {isPostModalOpen && (
-          <div className="notification-overlay" style={{ zIndex: 10000 }} onClick={() => setIsPostModalOpen(false)}>
+          <div className="notification-overlay" style={{ zIndex: 10000 }} onClick={handleClosePostModal}>
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
@@ -934,7 +1154,7 @@ export const Feed = () => {
               onClick={(e) => e.stopPropagation()}
             >
               <h3 style={{ fontSize: '20px', fontWeight: 800, fontFamily: 'var(--font-title)', marginBottom: '16px', color: '#ffffff' }}>
-                Share an Update
+                {editingPostId ? 'Edit Post' : 'Share an Update'}
               </h3>
               
               <form onSubmit={handleCreatePost} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -1064,7 +1284,7 @@ export const Feed = () => {
                 <div style={{ display: 'flex', gap: '12px', marginTop: '10px' }}>
                   <button
                     type="button"
-                    onClick={() => setIsPostModalOpen(false)}
+                    onClick={handleClosePostModal}
                     className="btn-outline"
                     style={{ flex: 1, justifyItems: 'center', justifyContent: 'center' }}
                   >
@@ -1076,7 +1296,7 @@ export const Feed = () => {
                     disabled={isUploading}
                     style={{ flex: 1, justifyItems: 'center', justifyContent: 'center' }}
                   >
-                    {isUploading ? `Uploading ${uploadProgress || 0}%` : 'Publish Post'}
+                    {isUploading ? `Uploading ${uploadProgress || 0}%` : (editingPostId ? 'Save Changes' : 'Publish Post')}
                   </button>
                 </div>
               </form>
@@ -1088,7 +1308,7 @@ export const Feed = () => {
       {/* Post Creation Confirmation Modal */}
       <AnimatePresence>
         {showPostConfirm && (
-          <div className="notification-overlay" style={{ zIndex: 10010 }} onClick={() => setShowPostConfirm(false)}>
+          <div className="notification-overlay" style={{ zIndex: 10010, background: 'rgba(0, 0, 0, 0.4)', backdropFilter: 'blur(2px)' }} onClick={() => setShowPostConfirm(false)}>
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
@@ -1130,6 +1350,62 @@ export const Feed = () => {
                   Confirm
                 </button>
               </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Post Creation Success Modal */}
+      <AnimatePresence>
+        {showSuccessModal && (
+          <div className="notification-overlay" style={{ zIndex: 10020, background: 'rgba(0, 0, 0, 0.4)', backdropFilter: 'blur(5px)' }} onClick={() => setShowSuccessModal(false)}>
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="glass-panel"
+              style={{
+                width: '90%',
+                maxWidth: '400px',
+                padding: '30px 24px',
+                textAlign: 'center',
+                border: '1px solid var(--color-yellow-primary)',
+                boxShadow: '0 10px 40px rgba(255, 215, 0, 0.15)',
+                background: 'rgba(10, 10, 10, 0.95)'
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div style={{
+                width: '64px',
+                height: '64px',
+                borderRadius: '50%',
+                background: 'rgba(255, 215, 0, 0.1)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                margin: '0 auto 20px auto',
+                color: 'var(--color-yellow-primary)',
+                boxShadow: '0 0 20px rgba(255, 215, 0, 0.2)'
+              }}>
+                <FiCheck size={32} />
+              </div>
+              
+              <h3 style={{ fontSize: '20px', fontWeight: 800, fontFamily: 'var(--font-title)', marginBottom: '12px', color: '#ffffff' }}>
+                Post Published!
+              </h3>
+              
+              <p style={{ fontSize: '14px', color: 'var(--color-text-gray)', lineHeight: '1.6', marginBottom: '24px' }}>
+                Your update has been successfully shared with the Maatram community feed.
+              </p>
+
+              <button
+                type="button"
+                onClick={() => setShowSuccessModal(false)}
+                className="btn-primary"
+                style={{ width: '100%', justifyItems: 'center', justifyContent: 'center' }}
+              >
+                Done
+              </button>
             </motion.div>
           </div>
         )}
@@ -1292,6 +1568,70 @@ export const Feed = () => {
               </div>
             </motion.div>
           </div>
+        )}
+      </AnimatePresence>
+
+      {/* Delete Post Confirmation Modal */}
+      <AnimatePresence>
+        {postToDelete && (
+          <div className="notification-overlay" style={{ zIndex: 10015, background: 'rgba(0, 0, 0, 0.4)', backdropFilter: 'blur(2px)' }} onClick={() => setPostToDelete(null)}>
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="glass-panel"
+              style={{
+                width: '90%',
+                maxWidth: '400px',
+                padding: '24px',
+                textAlign: 'center',
+                border: '1px solid #ff4444',
+                boxShadow: '0 10px 40px rgba(0,0,0,0.8)',
+                background: 'rgba(10, 10, 10, 0.95)'
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3 style={{ fontSize: '18px', fontWeight: 800, fontFamily: 'var(--font-title)', marginBottom: '12px', color: '#ffffff' }}>
+                Confirm Deletion
+              </h3>
+              
+              <p style={{ fontSize: '14px', color: 'var(--color-text-gray)', lineHeight: '1.5', marginBottom: '24px' }}>
+                Are you sure you want to delete this post? This action cannot be undone.
+              </p>
+
+              <div style={{ display: 'flex', gap: '12px' }}>
+                <button
+                  type="button"
+                  onClick={() => setPostToDelete(null)}
+                  className="btn-outline"
+                  style={{ flex: 1, justifyItems: 'center', justifyContent: 'center' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleDeletePost(postToDelete);
+                    setPostToDelete(null);
+                  }}
+                  className="btn-primary"
+                  style={{ flex: 1, justifyItems: 'center', justifyContent: 'center', background: '#ff4444', borderColor: '#ff4444', color: '#ffffff' }}
+                >
+                  Delete
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* User Profile Preview Popup */}
+      <AnimatePresence>
+        {selectedPreviewUserId && (
+          <UserProfilePopup 
+            userId={selectedPreviewUserId} 
+            onClose={() => setSelectedPreviewUserId(null)} 
+          />
         )}
       </AnimatePresence>
 

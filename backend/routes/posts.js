@@ -1,6 +1,7 @@
 import express from 'express';
 import Post from '../models/Post.js';
 import User from '../models/User.js';
+import Notification from '../models/Notification.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { uploadToCloudinary } from '../middleware/cloudinary.js';
 
@@ -11,6 +12,8 @@ router.get('/', authMiddleware, async (req, res) => {
   try {
     const posts = await Post.find()
       .populate('author', 'name role profile')
+      .populate('likes', 'name role profile')
+      .populate('reactions.user', 'name role profile')
       .populate('comments.user', 'name role profile')
       .populate('comments.replies.user', 'name role profile')
       .sort({ createdAt: -1 });
@@ -25,6 +28,8 @@ router.get('/:id', authMiddleware, async (req, res) => {
   try {
     const post = await Post.findById(req.params.id)
       .populate('author', 'name role profile')
+      .populate('likes', 'name role profile')
+      .populate('reactions.user', 'name role profile')
       .populate('comments.user', 'name role profile')
       .populate('comments.replies.user', 'name role profile');
     if (!post) {
@@ -38,15 +43,22 @@ router.get('/:id', authMiddleware, async (req, res) => {
 
 // Create new post
 router.post('/', authMiddleware, async (req, res) => {
+  console.log('--- POST /api/posts requested ---');
+  console.log('User:', req.user);
+  console.log('Payload caption:', req.body?.caption);
+  console.log('Payload image length/presence:', req.body?.image ? req.body.image.substring(0, 100) + '...' : 'none');
+
   try {
     const { caption, image } = req.body;
     if (!caption) {
+      console.log('Validation failed: Caption is missing or empty');
       return res.status(400).json({ message: 'Caption is required' });
     }
 
     let mediaUrl = '';
     if (image) {
       if (image.startsWith('data:image/') || image.startsWith('data:video/')) {
+        console.log('Uploading base64 image/video to Cloudinary...');
         mediaUrl = await uploadToCloudinary(image, 'posts');
       } else {
         mediaUrl = image;
@@ -60,19 +72,31 @@ router.post('/', authMiddleware, async (req, res) => {
     });
 
     await newPost.save();
+    console.log('Post saved successfully inside DB!');
 
     const populatedPost = await Post.findById(newPost._id)
-      .populate('author', 'name role profile');
+      .populate('author', 'name role profile')
+      .populate('likes', 'name role profile')
+      .populate('reactions.user', 'name role profile');
 
     res.status(201).json(populatedPost);
   } catch (error) {
-    console.error('Create post error:', error);
-    res.status(500).json({ message: 'Server error creating post' });
+    console.error('Create post error details:', error);
+    if (error.name === 'ValidationError') {
+      return res.status(400).json({ message: error.message });
+    }
+    res.status(500).json({ message: 'Server error creating post: ' + error.message });
   }
 });
 
 // Edit existing post
 router.put('/:id', authMiddleware, async (req, res) => {
+  console.log('--- PUT /api/posts/:id requested ---');
+  console.log('ID:', req.params.id);
+  console.log('User:', req.user);
+  console.log('Payload caption:', req.body?.caption);
+  console.log('Payload image length/presence:', req.body?.image ? 'present' : 'none');
+
   try {
     const { caption, image } = req.body;
     const post = await Post.findById(req.params.id);
@@ -90,15 +114,22 @@ router.put('/:id', authMiddleware, async (req, res) => {
     if (image !== undefined) post.image = image;
 
     await post.save();
+    console.log('Post updated successfully inside DB!');
     
     const updatedPost = await Post.findById(post._id)
       .populate('author', 'name role profile')
+      .populate('likes', 'name role profile')
+      .populate('reactions.user', 'name role profile')
       .populate('comments.user', 'name role profile')
       .populate('comments.replies.user', 'name role profile');
 
     res.json(updatedPost);
   } catch (error) {
-    res.status(500).json({ message: 'Server error editing post' });
+    console.error('Edit post error details:', error);
+    if (error.name === 'ValidationError') {
+      return res.status(400).json({ message: error.message });
+    }
+    res.status(500).json({ message: 'Server error editing post: ' + error.message });
   }
 });
 
@@ -130,19 +161,134 @@ router.post('/like/:id', authMiddleware, async (req, res) => {
       return res.status(404).json({ message: 'Post not found' });
     }
 
+    if (!post.reactions) {
+      post.reactions = [];
+    }
+
     const likeIdx = post.likes.indexOf(req.user.id);
+    const reactIdx = post.reactions.findIndex(r => r.user.toString() === req.user.id);
+
     if (likeIdx > -1) {
       // Unlike
       post.likes.splice(likeIdx, 1);
+      if (reactIdx > -1) {
+        post.reactions.splice(reactIdx, 1);
+      }
     } else {
       // Like
       post.likes.push(req.user.id);
+      if (reactIdx > -1) {
+        post.reactions[reactIdx].type = 'like';
+      } else {
+        post.reactions.push({ user: req.user.id, type: 'like' });
+      }
+
+      // Trigger notification if not liking own post
+      if (post.author.toString() !== req.user.id) {
+        try {
+          const likingUser = await User.findById(req.user.id);
+          const notif = new Notification({
+            recipient: post.author,
+            sender: req.user.id,
+            type: 'like',
+            relatedPost: post._id,
+            text: `${likingUser.name} liked your post`
+          });
+          await notif.save();
+        } catch (nErr) {
+          console.error('Notification creation failed for like:', nErr);
+        }
+      }
     }
 
     await post.save();
-    res.json({ likes: post.likes, liked: likeIdx === -1 });
+
+    const updatedPost = await Post.findById(post._id)
+      .populate('author', 'name role profile')
+      .populate('likes', 'name role profile')
+      .populate('reactions.user', 'name role profile')
+      .populate('comments.user', 'name role profile')
+      .populate('comments.replies.user', 'name role profile');
+
+    res.json(updatedPost);
   } catch (error) {
     res.status(500).json({ message: 'Server error liking post' });
+  }
+});
+
+// Toggle Reaction
+router.post('/react/:id', authMiddleware, async (req, res) => {
+  try {
+    const { type } = req.body; // 'like', 'funny', 'celebrate'
+    if (!type || !['like', 'funny', 'celebrate'].includes(type)) {
+      return res.status(400).json({ message: 'Reaction type must be like, funny, or celebrate' });
+    }
+
+    const post = await Post.findById(req.params.id);
+    if (!post) {
+      return res.status(404).json({ message: 'Post not found' });
+    }
+
+    if (!post.reactions) {
+      post.reactions = [];
+    }
+
+    const reactIdx = post.reactions.findIndex(r => r.user.toString() === req.user.id);
+    const likeIdx = post.likes.indexOf(req.user.id);
+
+    if (reactIdx > -1) {
+      // User has already reacted. Check if it's the same reaction
+      if (post.reactions[reactIdx].type === type) {
+        // Toggle OFF (remove reaction)
+        post.reactions.splice(reactIdx, 1);
+        if (likeIdx > -1) {
+          post.likes.splice(likeIdx, 1);
+        }
+      } else {
+        // Change reaction type
+        post.reactions[reactIdx].type = type;
+        if (likeIdx === -1) {
+          post.likes.push(req.user.id);
+        }
+      }
+    } else {
+      // New reaction
+      post.reactions.push({ user: req.user.id, type });
+      if (likeIdx === -1) {
+        post.likes.push(req.user.id);
+      }
+
+      // Trigger notification if not reacting to own post
+      if (post.author.toString() !== req.user.id) {
+        try {
+          const reactingUser = await User.findById(req.user.id);
+          const notif = new Notification({
+            recipient: post.author,
+            sender: req.user.id,
+            type: 'like',
+            relatedPost: post._id,
+            text: `${reactingUser.name} reacted to your post`
+          });
+          await notif.save();
+        } catch (nErr) {
+          console.error('Notification creation failed for reaction:', nErr);
+        }
+      }
+    }
+
+    await post.save();
+
+    const updatedPost = await Post.findById(post._id)
+      .populate('author', 'name role profile')
+      .populate('likes', 'name role profile')
+      .populate('reactions.user', 'name role profile')
+      .populate('comments.user', 'name role profile')
+      .populate('comments.replies.user', 'name role profile');
+
+    res.json(updatedPost);
+  } catch (error) {
+    console.error('Reaction error:', error);
+    res.status(500).json({ message: 'Server error reacting to post' });
   }
 });
 
@@ -166,8 +312,27 @@ router.post('/comment/:id', authMiddleware, async (req, res) => {
 
     await post.save();
 
+    // Trigger notification if not commenting on own post
+    if (post.author.toString() !== req.user.id) {
+      try {
+        const commenterUser = await User.findById(req.user.id);
+        const notif = new Notification({
+          recipient: post.author,
+          sender: req.user.id,
+          type: 'comment',
+          relatedPost: post._id,
+          text: `${commenterUser.name} commented on your post`
+        });
+        await notif.save();
+      } catch (nErr) {
+        console.error('Notification creation failed for comment:', nErr);
+      }
+    }
+
     const updatedPost = await Post.findById(post._id)
       .populate('author', 'name role profile')
+      .populate('likes', 'name role profile')
+      .populate('reactions.user', 'name role profile')
       .populate('comments.user', 'name role profile')
       .populate('comments.replies.user', 'name role profile');
 
@@ -212,17 +377,132 @@ router.post('/share/:id', authMiddleware, async (req, res) => {
 
     post.sharesCount += 1;
     await post.save();
+
+    // Trigger notification if not sharing own post
+    if (post.author.toString() !== req.user.id) {
+      try {
+        const sharingUser = await User.findById(req.user.id);
+        const notif = new Notification({
+          recipient: post.author,
+          sender: req.user.id,
+          type: 'share',
+          relatedPost: post._id,
+          text: `${sharingUser.name} shared your post`
+        });
+        await notif.save();
+      } catch (nErr) {
+        console.error('Notification creation failed for share:', nErr);
+      }
+    }
+
     res.json({ sharesCount: post.sharesCount });
   } catch (error) {
     res.status(500).json({ message: 'Server error sharing post' });
   }
 });
 
+// Toggle Repost / Share
+router.post('/repost/:id', authMiddleware, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+    const post = await Post.findById(req.params.id);
+    if (!user || !post) {
+      return res.status(404).json({ message: 'User or Post not found' });
+    }
+
+    if (!user.reposts) {
+      user.reposts = [];
+    }
+
+    const index = user.reposts.indexOf(post._id);
+    let reposted = false;
+
+    if (index > -1) {
+      user.reposts.splice(index, 1);
+      post.sharesCount = Math.max(0, post.sharesCount - 1);
+    } else {
+      user.reposts.push(post._id);
+      post.sharesCount += 1;
+      reposted = true;
+
+      // Trigger notification if not reposting own post
+      if (post.author.toString() !== req.user.id) {
+        try {
+          const notif = new Notification({
+            recipient: post.author,
+            sender: req.user.id,
+            type: 'share',
+            relatedPost: post._id,
+            text: `${user.name} reposted your post`
+          });
+          await notif.save();
+        } catch (nErr) {
+          console.error('Notification creation failed for repost:', nErr);
+        }
+      }
+    }
+
+    await user.save();
+    await post.save();
+
+    res.json({ reposted, sharesCount: post.sharesCount, reposts: user.reposts });
+  } catch (error) {
+    console.error('Repost error:', error);
+    res.status(500).json({ message: 'Server error reposting' });
+  }
+});
+
+// Get posts reposted by a user
+router.get('/user/:userId/reposts', authMiddleware, async (req, res) => {
+  try {
+    const targetUser = await User.findById(req.params.userId);
+    if (!targetUser) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const isOwner = req.user.id === targetUser._id.toString();
+    const isAdmin = req.user.role === 'admin';
+    const isConnected = targetUser.connections.includes(req.user.id);
+
+    if (targetUser.isPrivate && !isOwner && !isAdmin && !isConnected) {
+      return res.json([]);
+    }
+
+    const repostedPosts = await Post.find({ _id: { $in: targetUser.reposts || [] } })
+      .populate('author', 'name role profile')
+      .populate('likes', 'name role profile')
+      .populate('reactions.user', 'name role profile')
+      .populate('comments.user', 'name role profile')
+      .populate('comments.replies.user', 'name role profile')
+      .sort({ createdAt: -1 });
+
+    res.json(repostedPosts);
+  } catch (error) {
+    console.error('Fetch user reposts error:', error);
+    res.status(500).json({ message: 'Server error fetching reposts' });
+  }
+});
+
 // Get posts by a specific user
 router.get('/user/:userId', authMiddleware, async (req, res) => {
   try {
+    const targetUser = await User.findById(req.params.userId);
+    if (!targetUser) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const isOwner = req.user.id === targetUser._id.toString();
+    const isAdmin = req.user.role === 'admin';
+    const isConnected = targetUser.connections.includes(req.user.id);
+
+    if (targetUser.isPrivate && !isOwner && !isAdmin && !isConnected) {
+      return res.json([]);
+    }
+
     const posts = await Post.find({ author: req.params.userId })
       .populate('author', 'name role profile')
+      .populate('likes', 'name role profile')
+      .populate('reactions.user', 'name role profile')
       .populate('comments.user', 'name role profile')
       .populate('comments.replies.user', 'name role profile')
       .sort({ createdAt: -1 });
@@ -262,6 +542,8 @@ router.post('/comment/:postId/:commentId/like', authMiddleware, async (req, res)
     
     const updatedPost = await Post.findById(post._id)
       .populate('author', 'name role profile')
+      .populate('likes', 'name role profile')
+      .populate('reactions.user', 'name role profile')
       .populate('comments.user', 'name role profile')
       .populate('comments.replies.user', 'name role profile');
 
@@ -301,8 +583,27 @@ router.post('/comment/:postId/:commentId/reply', authMiddleware, async (req, res
 
     await post.save();
 
+    // Trigger notification if not replying to own comment
+    if (comment.user.toString() !== req.user.id) {
+      try {
+        const replyUser = await User.findById(req.user.id);
+        const notif = new Notification({
+          recipient: comment.user,
+          sender: req.user.id,
+          type: 'reply',
+          relatedPost: post._id,
+          text: `${replyUser.name} replied to your comment`
+        });
+        await notif.save();
+      } catch (nErr) {
+        console.error('Notification creation failed for reply:', nErr);
+      }
+    }
+
     const updatedPost = await Post.findById(post._id)
       .populate('author', 'name role profile')
+      .populate('likes', 'name role profile')
+      .populate('reactions.user', 'name role profile')
       .populate('comments.user', 'name role profile')
       .populate('comments.replies.user', 'name role profile');
 

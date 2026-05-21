@@ -62,12 +62,33 @@ const UserSchema = new mongoose.Schema({
       type: String,
       default: ''
     },
+    gender: {
+      type: String,
+      default: ''
+    },
+    education: {
+      type: String,
+      default: ''
+    },
+    college: {
+      type: String,
+      default: ''
+    },
     socialLinks: {
       linkedin: { type: String, default: '' },
       github: { type: String, default: '' },
       twitter: { type: String, default: '' },
       website: { type: String, default: '' }
-    }
+    },
+    experience: [{
+      title: { type: String, default: '' },
+      company: { type: String, default: '' },
+      location: { type: String, default: '' },
+      startDate: { type: String, default: '' },
+      endDate: { type: String, default: '' },
+      current: { type: Boolean, default: false },
+      description: { type: String, default: '' }
+    }]
   },
   connections: [{
     type: mongoose.Schema.Types.ObjectId,
@@ -77,6 +98,14 @@ const UserSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Post'
   }],
+  reposts: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Post'
+  }],
+  isPrivate: {
+    type: Boolean,
+    default: false
+  },
   createdAt: {
     type: Date,
     default: Date.now

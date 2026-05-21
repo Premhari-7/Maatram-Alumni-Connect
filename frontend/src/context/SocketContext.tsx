@@ -1,15 +1,35 @@
-import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, ReactNode, useCallback } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { useAuth, API_URL } from './AuthContext';
+import axios from 'axios';
 
 interface Message {
   id?: string;
   _id?: string;
-  sender: string;
+  sender: any;
   recipient: string;
   text: string;
   read: boolean;
   createdAt: string;
+}
+
+interface NotificationItem {
+  _id: string;
+  sender: {
+    _id?: string;
+    id?: string;
+    name: string;
+    role: string;
+    profile?: { avatar?: string };
+  };
+  recipient: string;
+  type: string;
+  text: string;
+  isRead: boolean;
+  createdAt: string;
+  relatedPost?: any;
+  relatedUser?: any;
+  relatedConnectionRequest?: string;
 }
 
 interface SocketContextProps {
@@ -26,6 +46,14 @@ interface SocketContextProps {
   loadingHistory: boolean;
   activePartnerId: string | null;
   setActivePartnerId: (id: string | null) => void;
+  // Notification state
+  notifications: NotificationItem[];
+  unreadNotifCount: number;
+  fetchNotifications: () => Promise<void>;
+  markNotifRead: (id: string) => Promise<void>;
+  markAllNotifsRead: () => Promise<void>;
+  deleteNotification: (id: string) => Promise<void>;
+  clearAllNotifications: () => Promise<void>;
 }
 
 const SocketContext = createContext<SocketContextProps | undefined>(undefined);
@@ -51,9 +79,173 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
   const [activePartnerId, setActivePartnerId] = useState<string | null>(null);
   const activePartnerIdRef = useRef<string | null>(null);
 
+  // Notification state
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+
   useEffect(() => {
     activePartnerIdRef.current = activePartnerId;
   }, [activePartnerId]);
+
+  // Default seeded notifications for mock mode
+  const defaultMockNotifs: NotificationItem[] = [
+    {
+      _id: 'notif_mock_1',
+      sender: {
+        _id: 'user_mock_alumni_1',
+        name: 'Premhari',
+        role: 'alumni',
+        profile: { avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100' }
+      },
+      recipient: '',
+      type: 'like',
+      text: 'liked your recent post.',
+      isRead: false,
+      createdAt: new Date(Date.now() - 1800000).toISOString()
+    },
+    {
+      _id: 'notif_mock_2',
+      sender: {
+        _id: 'user_mock_scholar_1',
+        name: 'Abitha',
+        role: 'student',
+        profile: { avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100' }
+      },
+      recipient: '',
+      type: 'comment',
+      text: 'commented on your post: "This looks fantastic! Let\'s connect."',
+      isRead: false,
+      createdAt: new Date(Date.now() - 7200000).toISOString()
+    },
+    {
+      _id: 'notif_mock_3',
+      sender: {
+        _id: 'user_mock_alumni_2',
+        name: 'Gokul',
+        role: 'alumni',
+        profile: { avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100' }
+      },
+      recipient: '',
+      type: 'connection_request',
+      text: 'wants to connect with you',
+      isRead: false,
+      relatedConnectionRequest: 'mock_conn_req_1',
+      createdAt: new Date(Date.now() - 86400000).toISOString()
+    },
+    {
+      _id: 'notif_mock_4',
+      sender: {
+        _id: 'alumni-1',
+        name: 'Arjun Ramachandran',
+        role: 'alumni',
+        profile: { avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100' }
+      },
+      recipient: '',
+      type: 'share',
+      text: 'shared your post',
+      isRead: true,
+      createdAt: new Date(Date.now() - 172800000).toISOString()
+    }
+  ];
+
+  // Fetch notifications from API or mock
+  const fetchNotifications = useCallback(async () => {
+    if (!user) return;
+    if (isMockMode) {
+      const stored = localStorage.getItem('mock_db_notifications');
+      if (stored) {
+        setNotifications(JSON.parse(stored));
+      } else {
+        localStorage.setItem('mock_db_notifications', JSON.stringify(defaultMockNotifs));
+        setNotifications(defaultMockNotifs);
+      }
+    } else {
+      try {
+        const res = await axios.get(`${API_URL}/notifications`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        setNotifications(res.data);
+      } catch (err) {
+        console.error('Error fetching notifications:', err);
+      }
+    }
+  }, [user, token, isMockMode]);
+
+  // Mark single notification as read
+  const markNotifRead = useCallback(async (id: string) => {
+    if (isMockMode) {
+      setNotifications(prev => {
+        const updated = prev.map(n => n._id === id ? { ...n, isRead: true } : n);
+        localStorage.setItem('mock_db_notifications', JSON.stringify(updated));
+        return updated;
+      });
+    } else {
+      try {
+        await axios.put(`${API_URL}/notifications/${id}/read`, {}, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        setNotifications(prev => prev.map(n => n._id === id ? { ...n, isRead: true } : n));
+      } catch (err) {
+        console.error('Error marking notification as read:', err);
+      }
+    }
+  }, [token, isMockMode]);
+
+  // Mark all notifications as read
+  const markAllNotifsRead = useCallback(async () => {
+    if (isMockMode) {
+      setNotifications(prev => {
+        const updated = prev.map(n => ({ ...n, isRead: true }));
+        localStorage.setItem('mock_db_notifications', JSON.stringify(updated));
+        return updated;
+      });
+    } else {
+      try {
+        await axios.put(`${API_URL}/notifications/read-all`, {}, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+      } catch (err) {
+        console.error('Error marking all notifications as read:', err);
+      }
+    }
+  }, [token, isMockMode]);
+
+  // Delete single notification
+  const deleteNotification = useCallback(async (id: string) => {
+    if (isMockMode) {
+      setNotifications(prev => {
+        const updated = prev.filter(n => n._id !== id);
+        localStorage.setItem('mock_db_notifications', JSON.stringify(updated));
+        return updated;
+      });
+    } else {
+      try {
+        await axios.delete(`${API_URL}/notifications/${id}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        setNotifications(prev => prev.filter(n => n._id !== id));
+      } catch (err) {
+        console.error('Error deleting notification:', err);
+      }
+    }
+  }, [token, isMockMode]);
+
+  // Clear all notifications
+  const clearAllNotifications = useCallback(async () => {
+    if (isMockMode) {
+      setNotifications([]);
+      localStorage.setItem('mock_db_notifications', JSON.stringify([]));
+    } else {
+      try {
+        await axios.delete(`${API_URL}/notifications/clear-all`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        setNotifications([]);
+      } catch (err) {
+        console.error('Error clearing notifications:', err);
+      }
+    }
+  }, [token, isMockMode]);
 
   // Initialize socket connection
   useEffect(() => {
@@ -87,7 +279,6 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
       });
     });
 
-    // Check status of other connections
     // Receive message
     newSocket.on('msg_receive', (msg: Message) => {
       const activeId = activePartnerIdRef.current;
@@ -114,6 +305,11 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
         prev.map(m => (m.recipient === readBy ? { ...m, read: true } : m))
       );
       refreshConversations();
+    });
+
+    // Real-time notification reception
+    newSocket.on('new_notification', (notif: NotificationItem) => {
+      setNotifications(prev => [notif, ...prev]);
     });
 
     return () => {
@@ -296,7 +492,6 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
       refreshConversations();
 
       // Trigger automatic smart response from mock user!
-      // This will simulate the typing indicator and send a logical response
       simulateMockPartnerResponse(recipientId, text);
     } else if (socket) {
       socket.emit('private_message', { recipientId, text });
@@ -352,7 +547,6 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
       let replyText = `Thanks for reaching out! Looking forward to talking more.`;
 
       if (partnerId === 'alumni-1') {
-        // Arjun (Software Engineer at Google)
         if (lower.includes('google') || lower.includes('job') || lower.includes('career') || lower.includes('work') || lower.includes('interview')) {
           replyText = `Working at Google is a great experience. I would recommend focusing heavily on DSA, system design, and coding practices. I can review your resume if you want!`;
         } else if (lower.includes('meet') || lower.includes('event') || lower.includes('weekend')) {
@@ -363,7 +557,6 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
           replyText = `That sounds interesting. As a Maatram alumnus, I am always glad to connect and share experiences. What are you currently working on?`;
         }
       } else if (partnerId === 'alumni-2') {
-        // Priya (Lead Product Designer at TechNova)
         if (lower.includes('design') || lower.includes('ux') || lower.includes('ui') || lower.includes('figma')) {
           replyText = `Product design is all about understanding the user and structuring simple flows. If you are learning Figma, let me know, and I can suggest some great resources and critique your portfolio.`;
         } else if (lower.includes('job') || lower.includes('intern') || lower.includes('technova')) {
@@ -372,7 +565,6 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
           replyText = `Thanks for messaging. Design and development go hand-in-hand! Let me know how I can assist you with your career path or projects.`;
         }
       } else if (partnerId === 'student-1') {
-        // Siddharth (Student)
         if (lower.includes('study') || lower.includes('college') || lower.includes('course')) {
           replyText = `College classes are going well. I am focusing a lot on JavaScript and web dev in my self-study time.`;
         } else if (lower.includes('help') || lower.includes('mentor')) {
@@ -411,6 +603,7 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
     if (user) {
       // Trigger conversation load and set online statuses
       refreshConversations();
+      fetchNotifications();
       if (isMockMode) {
         // Set all other mock users as online
         const mockOnline = new Set<string>();
@@ -427,8 +620,19 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
       setConversations([]);
       setChatMessages([]);
       setOnlineUsers(new Set());
+      setNotifications([]);
     }
   }, [user, isMockMode]);
+
+  // Periodically refresh notifications
+  useEffect(() => {
+    if (user) {
+      const interval = setInterval(fetchNotifications, 30000);
+      return () => clearInterval(interval);
+    }
+  }, [user, fetchNotifications]);
+
+  const unreadNotifCount = notifications.filter(n => !n.isRead).length;
 
   return (
     <SocketContext.Provider
@@ -445,7 +649,14 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
         refreshConversations,
         loadingHistory,
         activePartnerId,
-        setActivePartnerId
+        setActivePartnerId,
+        notifications,
+        unreadNotifCount,
+        fetchNotifications,
+        markNotifRead,
+        markAllNotifsRead,
+        deleteNotification,
+        clearAllNotifications
       }}
     >
       {children}
