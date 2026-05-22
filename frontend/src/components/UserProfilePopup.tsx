@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth, API_URL, User } from '../context/AuthContext';
+import { useAuth, API_URL, User, DEFAULT_AVATAR } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
 import { useSocket } from '../context/SocketContext';
-import { FiX, FiMail, FiBriefcase, FiUsers, FiAward, FiMessageSquare, FiUserCheck, FiUserPlus, FiLock, FiClock, FiUserMinus, FiLoader, FiUser, FiBookOpen } from 'react-icons/fi';
+import { FiX, FiMail, FiBriefcase, FiUsers, FiAward, FiMessageSquare, FiUserCheck, FiUserPlus, FiLock, FiClock, FiUserMinus, FiLoader, FiUser, FiBookOpen, FiEdit3 } from 'react-icons/fi';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -39,10 +39,10 @@ export const UserProfilePopup = ({ userId, onClose }: UserProfilePopupProps) => 
           const list = JSON.parse(mockUsersStr) as User[];
           const found = list.find(u => u.id === userId || (u as any)._id === userId);
           if (found) {
-            const isOwner = (found.id || (found as any)._id) === user?.id;
+            const isOwner = (found.id || (found as any)._id) === user?.id || (found.id || (found as any)._id) === user?._id;
             const isAdmin = user?.role === 'admin';
             const connections = found.connections || [];
-            const isConnected = connections.includes(user?.id || '');
+            const isConnected = connections.includes(user?.id || '') || connections.includes(user?._id || '');
             
             let userToSet = { ...found };
             if (found.isPrivate && !isOwner && !isAdmin && !isConnected) {
@@ -330,7 +330,7 @@ export const UserProfilePopup = ({ userId, onClose }: UserProfilePopupProps) => 
               <div style={{ marginTop: '-45px', marginBottom: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
                 <div style={{ position: 'relative' }}>
                   <img
-                    src={previewUser.profile?.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100'}
+                    src={previewUser.profile?.avatar || DEFAULT_AVATAR}
                     alt={previewUser.name}
                     style={{
                       width: '90px',
@@ -363,7 +363,27 @@ export const UserProfilePopup = ({ userId, onClose }: UserProfilePopupProps) => 
 
                 {/* Action buttons next to avatar */}
                 <div style={{ display: 'flex', gap: '8px' }}>
-                  {!isOwnProfile && (
+                  {isOwnProfile ? (
+                    <button
+                      onClick={() => {
+                        onClose();
+                        navigate('/dashboard/settings');
+                      }}
+                      className="btn-primary"
+                      style={{
+                        padding: '6px 12px',
+                        fontSize: '12px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        cursor: 'pointer',
+                        borderRadius: '6px',
+                        height: '32px'
+                      }}
+                    >
+                      <FiEdit3 size={14} /> Edit Profile
+                    </button>
+                  ) : (
                     <>
                       {connectionStatus === 'pending_received' ? (
                         <button

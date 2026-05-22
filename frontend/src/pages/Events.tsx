@@ -118,6 +118,41 @@ export const Events = () => {
       const updated = [newEv, ...events];
       setEvents(updated);
       localStorage.setItem('mock_db_events', JSON.stringify(updated));
+
+      // Seeding mock notifications for all student users
+      try {
+        const dbUsersStr = localStorage.getItem('mock_db_users');
+        if (dbUsersStr) {
+          const allUsers = JSON.parse(dbUsersStr);
+          const students = allUsers.filter((u: any) => u.role === 'student');
+          
+          const notifStr = localStorage.getItem('mock_db_notifications');
+          const notifs = notifStr ? JSON.parse(notifStr) : [];
+          
+          students.forEach((student: any) => {
+            notifs.unshift({
+              _id: 'notif_ev_' + Date.now() + Math.random(),
+              sender: {
+                _id: user?.id,
+                name: user?.name,
+                role: user?.role,
+                profile: { avatar: user?.profile?.avatar || '' }
+              },
+              recipient: student.id || student._id,
+              type: 'event',
+              text: `posted a new event: "${title}"`,
+              isRead: false,
+              createdAt: new Date().toISOString()
+            });
+          });
+          localStorage.setItem('mock_db_notifications', JSON.stringify(notifs));
+          
+          // Dispatch custom event to trigger notification components to re-fetch if they listen
+          window.dispatchEvent(new Event('mock_notifications_updated'));
+        }
+      } catch (err) {
+        console.error('Error seeding mock notifications:', err);
+      }
       
       // Reset form
       setTitle('');
@@ -162,8 +197,8 @@ export const Events = () => {
           </p>
         </div>
 
-        {/* Show event creation form trigger if Admin */}
-        {user?.role === 'admin' && (
+        {/* Show event creation form trigger if Admin or Alumni */}
+        {(user?.role === 'admin' || user?.role === 'alumni') && (
           <button 
             className="btn-primary" 
             onClick={() => setShowAdminForm(!showAdminForm)}
@@ -174,8 +209,8 @@ export const Events = () => {
         )}
       </div>
 
-      {/* Admin Creator Panel overlay form */}
-      {showAdminForm && user?.role === 'admin' && (
+      {/* Admin / Alumni Creator Panel overlay form */}
+      {showAdminForm && (user?.role === 'admin' || user?.role === 'alumni') && (
         <div 
           className="glass-panel" 
           style={{ 

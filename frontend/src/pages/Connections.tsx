@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useAuth, API_URL } from '../context/AuthContext';
+import { useAuth, API_URL, DEFAULT_AVATAR } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
 import { useSocket } from '../context/SocketContext';
 import { useNavigate } from 'react-router-dom';
@@ -450,7 +450,7 @@ export const Connections = () => {
                   }}
                 >
                   <img
-                    src={req.sender?.profile?.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100'}
+                    src={req.sender?.profile?.avatar || DEFAULT_AVATAR}
                     alt={req.sender?.name}
                     style={{
                       width: '48px',
@@ -653,7 +653,7 @@ export const Connections = () => {
                     <div style={{ display: 'flex', gap: '14px', alignItems: 'center' }}>
                       <div style={{ position: 'relative' }}>
                         <img
-                          src={u.profile?.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100'}
+                          src={u.profile?.avatar || DEFAULT_AVATAR}
                           alt={u.name}
                           onClick={() => handleProfileClick(targetId)}
                           style={{
@@ -868,7 +868,7 @@ export const Connections = () => {
               ) : (
                 <>
                   <img
-                    src={connectPopup.user.profile?.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100'}
+                    src={connectPopup.user.profile?.avatar || DEFAULT_AVATAR}
                     alt={connectPopup.user.name}
                     style={{
                       width: '64px',

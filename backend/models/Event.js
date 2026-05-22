@@ -29,6 +29,11 @@ const EventSchema = new mongoose.Schema({
     type: String,
     default: ''
   },
+  speaker: {
+    type: String,
+    default: '',
+    trim: true
+  },
   announcements: {
     type: [String],
     default: []

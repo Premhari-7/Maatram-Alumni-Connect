@@ -13,7 +13,7 @@ const NotificationSchema = new mongoose.Schema({
   },
   type: {
     type: String,
-    enum: ['connection', 'like', 'comment', 'reply', 'event', 'share', 'connection_request', 'connection_accepted', 'message'],
+    enum: ['connection', 'like', 'comment', 'reply', 'event', 'share', 'connection_request', 'connection_accepted', 'connection_rejected', 'message'],
     required: true
   },
   relatedPost: {

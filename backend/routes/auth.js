@@ -16,6 +16,13 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({ message: 'Please enter all required fields' });
     }
 
+    const gmailRegex = /^[a-zA-Z0-9._%+-]+@gmail\.com$/i;
+    if (!gmailRegex.test(email)) {
+      return res.status(400).json({ message: 'Email must be a valid Gmail address (ending with @gmail.com)' });
+    }
+
+    const normalizedEmail = email.toLowerCase().trim();
+
     // Role checks
     if (role === 'admin') {
       if (secretAdminCode !== ADMIN_SECRET) {
@@ -26,7 +33,7 @@ router.post('/register', async (req, res) => {
     }
 
     // Check if user already exists
-    const existingUser = await User.findOne({ email });
+    const existingUser = await User.findOne({ email: normalizedEmail });
     if (existingUser) {
       return res.status(400).json({ message: 'User with this email already exists' });
     }
@@ -38,7 +45,7 @@ router.post('/register', async (req, res) => {
     // Create user
     const newUser = new User({
       name,
-      email,
+      email: normalizedEmail,
       password: hashedPassword,
       role,
       isVerified: role !== 'alumni' // alumni requires admin verification
@@ -80,6 +87,13 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ message: 'Please enter all required fields' });
     }
 
+    const gmailRegex = /^[a-zA-Z0-9._%+-]+@gmail\.com$/i;
+    if (!gmailRegex.test(email)) {
+      return res.status(400).json({ message: 'Email must be a valid Gmail address (ending with @gmail.com)' });
+    }
+
+    const normalizedEmail = email.toLowerCase().trim();
+
     // For Admin role, check the Secret Code
     if (role === 'admin') {
       if (secretAdminCode !== ADMIN_SECRET) {
@@ -88,7 +102,7 @@ router.post('/login', async (req, res) => {
     }
 
     // Check user exists
-    const user = await User.findOne({ email });
+    const user = await User.findOne({ email: normalizedEmail });
     if (!user) {
       return res.status(400).json({ message: 'Invalid credentials' });
     }

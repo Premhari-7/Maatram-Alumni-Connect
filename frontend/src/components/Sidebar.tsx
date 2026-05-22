@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
+import { useAuth, DEFAULT_AVATAR } from '../context/AuthContext';
 import { FloatingCapLogo } from './FloatingCapLogo';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -133,7 +133,7 @@ export const Sidebar = () => {
           {/* User tag info */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', paddingLeft: '8px' }}>
             <img
-              src={user.profile?.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100'}
+              src={user.profile?.avatar || DEFAULT_AVATAR}
               alt={user.name}
               style={{
                 width: '36px',

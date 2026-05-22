@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useAuth, API_URL } from '../context/AuthContext';
+import { useAuth, API_URL, DEFAULT_AVATAR } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
 import { 
   FiSave, FiUser, FiInfo, FiSliders, FiImage, FiBriefcase, 
@@ -9,6 +9,7 @@ import {
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
 import { UserProfilePopup } from '../components/UserProfilePopup';
+import { MonthYearPicker } from '../components/MonthYearPicker';
 
 interface Reply {
   _id?: string;
@@ -1432,7 +1433,7 @@ export const Settings = () => {
                           onClick={() => setSelectedPreviewUserId(post.author._id || (post.author as any).id)}
                         >
                           <img
-                            src={post.author.profile?.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100'}
+                            src={post.author.profile?.avatar || DEFAULT_AVATAR}
                             alt={post.author.name}
                             style={{
                               width: '42px',
@@ -1600,7 +1601,7 @@ export const Settings = () => {
                                         style={{ cursor: 'pointer' }}
                                       >
                                         <img
-                                          src={comment.user?.profile?.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100'}
+                                          src={comment.user?.profile?.avatar || DEFAULT_AVATAR}
                                           alt={comment.user?.name}
                                           style={{ width: '28px', height: '28px', borderRadius: '50%', objectFit: 'cover', border: '1px solid rgba(255,215,0,0.15)' }}
                                         />
@@ -1681,7 +1682,7 @@ export const Settings = () => {
                                               style={{ cursor: 'pointer' }}
                                             >
                                               <img
-                                                src={reply.user?.profile?.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100'}
+                                                src={reply.user?.profile?.avatar || DEFAULT_AVATAR}
                                                 alt={reply.user?.name}
                                                 style={{ width: '22px', height: '22px', borderRadius: '50%', objectFit: 'cover' }}
                                               />
@@ -1869,12 +1870,11 @@ export const Settings = () => {
 
                     <div className="form-group">
                       <label className="form-label">Start Date *</label>
-                      <input
-                        type="month"
-                        required
+                      <MonthYearPicker
                         value={expStartDate}
-                        onChange={(e) => setExpStartDate(e.target.value)}
-                        className="form-input"
+                        onChange={(val) => setExpStartDate(val)}
+                        placeholder="Select start date"
+                        required
                       />
                     </div>
 
@@ -1893,12 +1893,11 @@ export const Settings = () => {
                     {!expCurrent && (
                       <div className="form-group">
                         <label className="form-label">End Date</label>
-                        <input
-                          type="month"
-                          required={!expCurrent}
+                        <MonthYearPicker
                           value={expEndDate}
-                          onChange={(e) => setExpEndDate(e.target.value)}
-                          className="form-input"
+                          onChange={(val) => setExpEndDate(val)}
+                          placeholder="Select end date"
+                          required={!expCurrent}
                         />
                       </div>
                     )}
@@ -2385,7 +2384,7 @@ export const Settings = () => {
                           onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                         >
                           <img
-                            src={u.profile?.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100'}
+                            src={u.profile?.avatar || DEFAULT_AVATAR}
                             alt={u.name}
                             style={{ width: '36px', height: '36px', borderRadius: '50%', objectFit: 'cover', border: '1px solid rgba(255, 215, 0, 0.15)' }}
                           />

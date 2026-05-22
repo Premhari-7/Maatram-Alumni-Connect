@@ -1,6 +1,9 @@
 import express from 'express';
 import Event from '../models/Event.js';
-import { authMiddleware, adminMiddleware } from '../middleware/auth.js';
+import User from '../models/User.js';
+import Notification from '../models/Notification.js';
+import { authMiddleware, adminMiddleware, adminOrAlumniMiddleware } from '../middleware/auth.js';
+import { getIO, getSocketIdByUserId } from '../sockets/chat.js';
 
 const router = express.Router();
 
@@ -32,10 +35,10 @@ router.get('/:id', authMiddleware, async (req, res) => {
   }
 });
 
-// Admin: Create Event
-router.post('/', authMiddleware, adminMiddleware, async (req, res) => {
+// Admin / Alumni: Create Event
+router.post('/', authMiddleware, adminOrAlumniMiddleware, async (req, res) => {
   try {
-    const { title, description, type, date, location, poster } = req.body;
+    const { title, description, type, date, location, poster, speaker } = req.body;
 
     if (!title || !description || !type || !date || !location) {
       return res.status(400).json({ message: 'Please provide all required event details' });
@@ -48,6 +51,7 @@ router.post('/', authMiddleware, adminMiddleware, async (req, res) => {
       date,
       location,
       poster: poster || '',
+      speaker: speaker || '',
       createdBy: req.user.id
     });
 
@@ -55,6 +59,36 @@ router.post('/', authMiddleware, adminMiddleware, async (req, res) => {
     
     const populatedEvent = await Event.findById(newEvent._id)
       .populate('createdBy', 'name email role');
+
+    // Create and dispatch notifications for all student users
+    try {
+      const students = await User.find({ role: 'student' });
+      if (students.length > 0) {
+        const notifData = students.map(student => ({
+          recipient: student._id,
+          sender: req.user.id,
+          type: 'event',
+          text: `posted a new event: "${title}"`,
+          isRead: false
+        }));
+
+        const savedNotifs = await Notification.insertMany(notifData);
+        
+        const io = getIO();
+        if (io) {
+          for (const notif of savedNotifs) {
+            const socketId = getSocketIdByUserId(notif.recipient.toString());
+            if (socketId) {
+              const populatedNotif = await Notification.findById(notif._id)
+                .populate('sender', 'name email role profile');
+              io.to(socketId).emit('new_notification', populatedNotif);
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Error dispatching student notifications for event:', err);
+    }
 
     res.status(201).json(populatedEvent);
   } catch (error) {

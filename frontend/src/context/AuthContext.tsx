@@ -36,6 +36,7 @@ export interface UserProfile {
 
 export interface User {
   id: string;
+  _id?: string;
   name: string;
   email: string;
   role: 'admin' | 'student' | 'alumni';
@@ -74,6 +75,8 @@ export const useAuth = () => {
 
 export const API_URL = 'http://localhost:5000/api';
 
+export const DEFAULT_AVATAR = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><rect width="24" height="24" fill="%23111111"/><circle cx="12" cy="8" r="4" fill="%23ffd700" opacity="0.8"/><path d="M12 14c-4.5 0-6.5 2.5-7 4h14c-.5-1.5-2.5-4-7-4z" fill="%23ffd700" opacity="0.9"/></svg>`;
+
 // Set default auth token in axios headers
 const setAuthToken = (token: string | null) => {
   if (token) {
@@ -84,7 +87,37 @@ const setAuthToken = (token: string | null) => {
 };
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const [user, setUser] = useState<User | null>(null);
+  const [userState, setUserState] = useState<User | null>(null);
+  const setUser = (val: User | null | ((prev: User | null) => User | null)) => {
+    if (typeof val === 'function') {
+      setUserState(prev => {
+        const computed = val(prev);
+        if (!computed) return null;
+        const normalized = { ...computed };
+        if (normalized._id && !normalized.id) {
+          normalized.id = normalized._id;
+        }
+        if (normalized.id && !normalized._id) {
+          normalized._id = normalized.id;
+        }
+        return normalized;
+      });
+    } else {
+      if (!val) {
+        setUserState(null);
+      } else {
+        const normalized = { ...val };
+        if (normalized._id && !normalized.id) {
+          normalized.id = normalized._id;
+        }
+        if (normalized.id && !normalized._id) {
+          normalized._id = normalized.id;
+        }
+        setUserState(normalized);
+      }
+    }
+  };
+  const user = userState;
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [isMockMode, setIsMockMode] = useState(false);
@@ -145,7 +178,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       {
         id: 'admin-1',
         name: 'Maatram Admin Office',
-        email: 'admin@maatram.org',
+        email: 'admin@gmail.com',
         role: 'admin',
         isVerified: true,
         profile: {
@@ -170,7 +203,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       {
         id: 'alumni-1',
         name: 'Arjun Ramachandran',
-        email: 'arjun@work.com',
+        email: 'arjun@gmail.com',
         role: 'alumni',
         isVerified: true,
         profile: {
@@ -216,7 +249,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       {
         id: 'alumni-2',
         name: 'Priya Narayanan',
-        email: 'priya@ux.com',
+        email: 'priya@gmail.com',
         role: 'alumni',
         isVerified: true,
         profile: {
@@ -262,7 +295,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       {
         id: 'student-1',
         name: 'Siddharth Kumar',
-        email: 'siddharth@college.edu',
+        email: 'siddharth@gmail.com',
         role: 'student',
         isVerified: true,
         profile: {
@@ -373,9 +406,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     } catch (err: any) {
       console.warn('API registration failed, fallback to local storage mock signup.', err);
 
+      // Validate Gmail format in mock register
+      const gmailRegex = /^[a-zA-Z0-9._%+-]+@gmail\.com$/i;
+      if (!gmailRegex.test(email)) {
+        showNotification('Invalid Email Format', 'Please enter a valid Gmail address ending in @gmail.com.', 'error');
+        setLoading(false);
+        throw new Error('Invalid Email Format');
+      }
+
       // Check if user already exists in mock DB
       const mockUsers = getMockUsers();
-      if (mockUsers.some(u => u.email.toLowerCase() === email.toLowerCase())) {
+      if (mockUsers.some(u => u.email.toLowerCase() === email.toLowerCase().trim())) {
         showNotification('Signup Failed', 'An account with this email already exists.', 'error');
         setLoading(false);
         throw new Error('Email exists');
@@ -392,7 +433,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const newMockUser: User = {
         id: 'user_' + Date.now(),
         name,
-        email,
+        email: email.toLowerCase().trim(),
         role,
         isVerified,
         profile: {

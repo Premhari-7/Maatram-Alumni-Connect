@@ -218,6 +218,26 @@ router.post('/accept/:requestId', authMiddleware, async (req, res) => {
       .populate('sender', 'name role profile.avatar');
     emitNotificationToUser(request.sender, populatedNotif);
 
+    // Update the notification received by the receiver
+    try {
+      const existingNotif = await Notification.findOne({
+        recipient: req.user.id,
+        relatedConnectionRequest: request._id
+      });
+      if (existingNotif) {
+        existingNotif.type = 'connection_accepted';
+        existingNotif.text = 'is now connected with you.';
+        existingNotif.relatedConnectionRequest = undefined;
+        await existingNotif.save();
+        
+        const populatedSelfNotif = await Notification.findById(existingNotif._id)
+          .populate('sender', 'name role profile.avatar');
+        emitNotificationToUser(req.user.id, populatedSelfNotif);
+      }
+    } catch (err) {
+      console.error('Error updating self notification on accept:', err);
+    }
+
     res.json({
       status: 'connected',
       message: 'Connection request accepted!'
@@ -246,6 +266,26 @@ router.post('/reject/:requestId', authMiddleware, async (req, res) => {
 
     request.status = 'rejected';
     await request.save();
+
+    // Update the notification received by the receiver
+    try {
+      const existingNotif = await Notification.findOne({
+        recipient: req.user.id,
+        relatedConnectionRequest: request._id
+      });
+      if (existingNotif) {
+        existingNotif.type = 'connection_rejected';
+        existingNotif.text = 'connection request declined.';
+        existingNotif.relatedConnectionRequest = undefined;
+        await existingNotif.save();
+        
+        const populatedSelfNotif = await Notification.findById(existingNotif._id)
+          .populate('sender', 'name role profile.avatar');
+        emitNotificationToUser(req.user.id, populatedSelfNotif);
+      }
+    } catch (err) {
+      console.error('Error updating self notification on reject:', err);
+    }
 
     res.json({
       status: 'rejected',

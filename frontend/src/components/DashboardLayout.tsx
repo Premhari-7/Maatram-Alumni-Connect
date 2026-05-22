@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Navigate, Outlet, useNavigate } from 'react-router-dom';
-import { useAuth, API_URL } from '../context/AuthContext';
+import { useAuth, API_URL, DEFAULT_AVATAR } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
 import { Sidebar } from './Sidebar';
 import { AIChatbot } from './AIChatbot';
@@ -17,6 +17,7 @@ const getNotifIcon = (type: string) => {
     case 'share': return <FiShare2 size={14} style={{ color: '#a78bfa' }} />;
     case 'connection_request': return <FiUserPlus size={14} style={{ color: '#ffd700' }} />;
     case 'connection_accepted': case 'connection': return <FiUserCheck size={14} style={{ color: '#22c55e' }} />;
+    case 'connection_rejected': return <FiX size={14} style={{ color: '#ff6b6b' }} />;
     default: return <FiBell size={14} style={{ color: '#ffd700' }} />;
   }
 };
@@ -202,8 +203,24 @@ export const DashboardLayout = () => {
         localStorage.setItem('maatram_user', JSON.stringify(curr));
         refreshUser();
       }
-      // Remove the notification
-      await deleteNotification(notif._id);
+      // Update the notification in localStorage
+      const storedNotifsStr = localStorage.getItem('mock_db_notifications');
+      if (storedNotifsStr) {
+        const notifs = JSON.parse(storedNotifsStr);
+        const updatedNotifs = notifs.map((n: any) => {
+          if (n._id === notif._id) {
+            return {
+              ...n,
+              type: 'connection_accepted',
+              text: 'is now connected with you.',
+              relatedConnectionRequest: undefined
+            };
+          }
+          return n;
+        });
+        localStorage.setItem('mock_db_notifications', JSON.stringify(updatedNotifs));
+        fetchNotifications();
+      }
     } else {
       try {
         await axios.post(`${API_URL}/connections/accept/${notif.relatedConnectionRequest}`, {}, {
@@ -222,7 +239,23 @@ export const DashboardLayout = () => {
     e.stopPropagation();
     if (!notif.relatedConnectionRequest) return;
     if (isMockMode) {
-      await deleteNotification(notif._id);
+      const storedNotifsStr = localStorage.getItem('mock_db_notifications');
+      if (storedNotifsStr) {
+        const notifs = JSON.parse(storedNotifsStr);
+        const updatedNotifs = notifs.map((n: any) => {
+          if (n._id === notif._id) {
+            return {
+              ...n,
+              type: 'connection_rejected',
+              text: 'connection request declined.',
+              relatedConnectionRequest: undefined
+            };
+          }
+          return n;
+        });
+        localStorage.setItem('mock_db_notifications', JSON.stringify(updatedNotifs));
+        fetchNotifications();
+      }
     } else {
       try {
         await axios.post(`${API_URL}/connections/reject/${notif.relatedConnectionRequest}`, {}, {
@@ -456,7 +489,7 @@ export const DashboardLayout = () => {
                             {/* Avatar with type icon overlay */}
                             <div style={{ position: 'relative', flexShrink: 0 }}>
                               <img
-                                src={notif.sender?.profile?.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100'}
+                                src={notif.sender?.profile?.avatar || DEFAULT_AVATAR}
                                 alt={notif.sender?.name || 'User'}
                                 style={{
                                   width: '36px',

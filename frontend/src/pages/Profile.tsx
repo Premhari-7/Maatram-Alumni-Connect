@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { useAuth, API_URL, Experience } from '../context/AuthContext';
+import { useAuth, API_URL, Experience, DEFAULT_AVATAR } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
 import { FiMail, FiMapPin, FiBriefcase, FiUsers, FiAward, FiEdit3, FiMessageSquare, FiHeart, FiSend, FiBookmark, FiTrash2, FiShare2, FiPlus, FiX, FiLock, FiUserCheck, FiUserPlus, FiUser, FiBookOpen, FiThumbsUp, FiSmile, FiRepeat, FiCopy, FiLinkedin, FiTwitter } from 'react-icons/fi';
 import axios from 'axios';
@@ -9,6 +9,7 @@ import { UserProfilePopup } from '../components/UserProfilePopup';
 
 interface ProfileData {
   _id: string;
+  id?: string;
   name: string;
   role: string;
   email: string;
@@ -403,10 +404,11 @@ export const Profile = () => {
   const [postToDelete, setPostToDelete] = useState<string | null>(null);
   const [selectedPreviewUserId, setSelectedPreviewUserId] = useState<string | null>(null);
   const [showWhoLikedPostId, setShowWhoLikedPostId] = useState<string | null>(null);
+  const [activePostOptions, setActivePostOptions] = useState<Post | null>(null);
 
   // React useEffect Scroll Lock
   useEffect(() => {
-    const isAnyModalOpen = isPostModalOpen || showPostConfirm || (postToDelete !== null) || (selectedPreviewUserId !== null) || (showWhoLikedPostId !== null) || (sharingPost !== null);
+    const isAnyModalOpen = isPostModalOpen || showPostConfirm || (postToDelete !== null) || (selectedPreviewUserId !== null) || (showWhoLikedPostId !== null) || (sharingPost !== null) || (activePostOptions !== null);
     if (isAnyModalOpen) {
       document.body.style.overflow = 'hidden';
     } else {
@@ -415,7 +417,38 @@ export const Profile = () => {
     return () => {
       document.body.style.overflow = '';
     };
-  }, [isPostModalOpen, showPostConfirm, postToDelete, selectedPreviewUserId, showWhoLikedPostId, sharingPost]);
+  }, [isPostModalOpen, showPostConfirm, postToDelete, selectedPreviewUserId, showWhoLikedPostId, sharingPost, activePostOptions]);
+
+  const handlePostCardClick = (e: React.MouseEvent, post: Post) => {
+    const target = e.target as HTMLElement;
+    let current: HTMLElement | null = target;
+    for (let i = 0; i < 5; i++) {
+      if (!current) break;
+      const tagName = current.tagName.toLowerCase();
+      if (
+        tagName === 'button' ||
+        tagName === 'a' ||
+        tagName === 'input' ||
+        tagName === 'textarea' ||
+        tagName === 'video' ||
+        tagName === 'audio' ||
+        tagName === 'img' ||
+        current.onclick ||
+        current.getAttribute('role') === 'button' ||
+        current.style.cursor === 'pointer'
+      ) {
+        return;
+      }
+      current = current.parentElement;
+    }
+    setActivePostOptions(post);
+  };
+
+  const handlePostCardContextMenu = (e: React.MouseEvent, postId: string) => {
+    e.preventDefault();
+    handleLike(postId);
+    showNotification('Liked!', 'Post like toggled.', 'success');
+  };
 
   const fetchProfile = async () => {
     if (!id) return;
@@ -433,9 +466,9 @@ export const Profile = () => {
             connections: found.connections || []
           };
           
-          const isOwner = normalizedUser._id === user?.id;
+          const isOwner = normalizedUser._id === user?.id || normalizedUser.id === user?.id || normalizedUser._id === user?._id || normalizedUser.id === user?._id;
           const isAdmin = user?.role === 'admin';
-          const isConnected = normalizedUser.connections.includes(user?.id || '');
+          const isConnected = normalizedUser.connections.includes(user?.id || '') || normalizedUser.connections.includes(user?._id || '');
           
           if (found.isPrivate && !isOwner && !isAdmin && !isConnected) {
             normalizedUser.email = '••••••••@••••.•••';
@@ -815,10 +848,10 @@ export const Profile = () => {
         const list = JSON.parse(mockUsersStr) as any[];
         const found = list.find(u => u._id === id || u.id === id);
         if (found) {
-          const isOwner = (found._id || found.id) === user?.id;
+          const isOwner = (found._id || found.id) === user?.id || (found._id || found.id) === user?._id;
           const isAdmin = user?.role === 'admin';
           const connections = found.connections || [];
-          const isConnected = connections.includes(user?.id || '');
+          const isConnected = connections.includes(user?.id || '') || connections.includes(user?._id || '');
           if (found.isPrivate && !isOwner && !isAdmin && !isConnected) {
             isPrivateMasked = true;
           }
@@ -986,7 +1019,7 @@ export const Profile = () => {
     );
   }
 
-  const isOwnProfile = user?.id === profile._id;
+  const isOwnProfile = user && (user.id === profile._id || user.id === profile.id || user._id === profile._id || user._id === profile.id);
 
   const renderPostCard = (post: Post) => {
     const isLiked = user ? post.likes.includes(user.id) || post.likes.includes((user as any)._id) : false;
@@ -996,7 +1029,20 @@ export const Profile = () => {
     const reactionType = getUserReaction(post);
 
     return (
-      <div key={post._id} className="glass-panel" style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '14px', borderColor: 'rgba(255, 215, 0, 0.08)' }}>
+      <div 
+        key={post._id} 
+        className="glass-panel" 
+        onClick={(e) => handlePostCardClick(e, post)}
+        onContextMenu={(e) => handlePostCardContextMenu(e, post._id)}
+        style={{ 
+          padding: '20px', 
+          display: 'flex', 
+          flexDirection: 'column', 
+          gap: '14px', 
+          borderColor: 'rgba(255, 215, 0, 0.08)',
+          cursor: 'pointer'
+        }}
+      >
         {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div 
@@ -1004,7 +1050,7 @@ export const Profile = () => {
             onClick={() => setSelectedPreviewUserId(post.author._id || (post.author as any).id)}
           >
             <img
-              src={post.author.profile?.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100'}
+              src={post.author.profile?.avatar || DEFAULT_AVATAR}
               alt={post.author.name}
               style={{ width: '36px', height: '36px', borderRadius: '50%', objectFit: 'cover', border: '1.5px solid var(--color-yellow-primary)' }}
             />
@@ -1263,7 +1309,7 @@ export const Profile = () => {
                           style={{ cursor: 'pointer' }}
                         >
                           <img
-                            src={comment.user?.profile?.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100'}
+                            src={comment.user?.profile?.avatar || DEFAULT_AVATAR}
                             alt={comment.user?.name}
                             style={{ width: '28px', height: '28px', borderRadius: '50%', objectFit: 'cover', border: '1px solid rgba(255,215,0,0.15)' }}
                           />
@@ -1346,7 +1392,7 @@ export const Profile = () => {
                                 style={{ cursor: 'pointer' }}
                               >
                                 <img
-                                  src={reply.user?.profile?.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100'}
+                                  src={reply.user?.profile?.avatar || DEFAULT_AVATAR}
                                   alt={reply.user?.name}
                                   style={{ width: '22px', height: '22px', borderRadius: '50%', objectFit: 'cover' }}
                                 />
@@ -1524,7 +1570,7 @@ export const Profile = () => {
         {/* Avatar left column */}
         <div style={{ textAlign: 'center', marginTop: '-75px', position: 'relative', zIndex: 10 }}>
           <img
-            src={profile.profile?.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150'}
+            src={profile.profile?.avatar || DEFAULT_AVATAR}
             alt={profile.name}
             style={{
               width: '130px',
@@ -1583,7 +1629,7 @@ export const Profile = () => {
               ) : (
                 <>
                   <button
-                    className={profile.connections?.includes(user?.id || '') ? "btn-outline" : "btn-primary"}
+                    className={profile.connections?.includes(user?.id || '') || profile.connections?.includes(user?._id || '') ? "btn-outline" : "btn-primary"}
                     onClick={handleConnectToggle}
                     style={{
                       gap: '6px',
@@ -1591,11 +1637,11 @@ export const Profile = () => {
                       fontSize: '13px',
                       display: 'flex',
                       alignItems: 'center',
-                      borderColor: profile.connections?.includes(user?.id || '') ? 'var(--color-yellow-primary)' : undefined,
-                      color: profile.connections?.includes(user?.id || '') ? 'var(--color-yellow-primary)' : undefined
+                      borderColor: profile.connections?.includes(user?.id || '') || profile.connections?.includes(user?._id || '') ? 'var(--color-yellow-primary)' : undefined,
+                      color: profile.connections?.includes(user?.id || '') || profile.connections?.includes(user?._id || '') ? 'var(--color-yellow-primary)' : undefined
                     }}
                   >
-                    {profile.connections?.includes(user?.id || '') ? (
+                    {profile.connections?.includes(user?.id || '') || profile.connections?.includes(user?._id || '') ? (
                       <>
                         <FiUserCheck /> Connected
                       </>
@@ -1695,7 +1741,7 @@ export const Profile = () => {
       </div>
 
       {/* Under splits (Skills & Activities) */}
-      {profile.isPrivateMasked ? (
+      {profile.isPrivateMasked && !isOwnProfile ? (
         <div 
           className="glass-panel" 
           style={{ 
@@ -2263,7 +2309,7 @@ export const Profile = () => {
                           onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                         >
                           <img
-                            src={u.profile?.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100'}
+                            src={u.profile?.avatar || DEFAULT_AVATAR}
                             alt={u.name}
                             style={{ width: '36px', height: '36px', borderRadius: '50%', objectFit: 'cover', border: '1px solid rgba(255, 215, 0, 0.15)' }}
                           />
@@ -2427,6 +2473,142 @@ export const Profile = () => {
           </div>
         )}
       </AnimatePresence>
+
+      {/* Post Options Modal */}
+      <AnimatePresence>
+        {activePostOptions && (
+          <div 
+            onClick={() => setActivePostOptions(null)}
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: 'rgba(0,0,0,0.6)',
+              backdropFilter: 'blur(8px)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 1000,
+              padding: '20px'
+            }}
+          >
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="glass-panel"
+              style={{
+                width: '100%',
+                maxWidth: '400px',
+                padding: '24px',
+                borderColor: 'rgba(255,215,0,0.2)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '20px'
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--color-border-glass)', paddingBottom: '12px' }}>
+                <h3 style={{ fontSize: '16px', fontWeight: 700, color: '#ffffff', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  Post Options
+                </h3>
+                <button 
+                  onClick={() => setActivePostOptions(null)}
+                  style={{ background: 'none', border: 'none', color: 'var(--color-text-gray)', cursor: 'pointer' }}
+                >
+                  <FiX size={20} />
+                </button>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {/* Like Option */}
+                <button
+                  onClick={() => {
+                    handleLike(activePostOptions._id);
+                    setActivePostOptions(null);
+                  }}
+                  className="btn-outline"
+                  style={{
+                    justifyContent: 'flex-start',
+                    gap: '12px',
+                    padding: '12px 16px',
+                    fontSize: '14px',
+                    borderColor: activePostOptions.likes.includes(user?.id || (user as any)?._id) ? 'var(--color-yellow-primary)' : 'rgba(255,255,255,0.08)',
+                    color: activePostOptions.likes.includes(user?.id || (user as any)?._id) ? 'var(--color-yellow-primary)' : '#ffffff'
+                  }}
+                >
+                  <FiHeart fill={activePostOptions.likes.includes(user?.id || (user as any)?._id) ? 'var(--color-yellow-primary)' : 'none'} size={18} />
+                  {activePostOptions.likes.includes(user?.id || (user as any)?._id) ? 'Unlike Post' : 'Like Post'}
+                </button>
+
+                {/* Comment Option */}
+                <button
+                  onClick={() => {
+                    setActiveCommentsPostId(activeCommentsPostId === activePostOptions._id ? null : activePostOptions._id);
+                    setActivePostOptions(null);
+                  }}
+                  className="btn-outline"
+                  style={{
+                    justifyContent: 'flex-start',
+                    gap: '12px',
+                    padding: '12px 16px',
+                    fontSize: '14px',
+                    borderColor: 'rgba(255,255,255,0.08)',
+                    color: '#ffffff'
+                  }}
+                >
+                  <FiMessageSquare size={18} />
+                  Comment on Post
+                </button>
+
+                {/* Repost Option */}
+                <button
+                  onClick={() => {
+                    handleRepostToggle(activePostOptions._id);
+                    setActivePostOptions(null);
+                  }}
+                  className="btn-outline"
+                  style={{
+                    justifyContent: 'flex-start',
+                    gap: '12px',
+                    padding: '12px 16px',
+                    fontSize: '14px',
+                    borderColor: user?.reposts?.includes(activePostOptions._id) ? 'var(--color-yellow-primary)' : 'rgba(255,255,255,0.08)',
+                    color: user?.reposts?.includes(activePostOptions._id) ? 'var(--color-yellow-primary)' : '#ffffff'
+                  }}
+                >
+                  <FiShare2 size={18} />
+                  {user?.reposts?.includes(activePostOptions._id) ? 'Undo Repost' : 'Repost / Share'}
+                </button>
+
+                {/* Copy Link Option */}
+                <button
+                  onClick={() => {
+                    const shareUrl = `${window.location.origin}/dashboard/feed?post=${activePostOptions._id}`;
+                    navigator.clipboard.writeText(shareUrl);
+                    showNotification('Success', 'Post link copied to clipboard!', 'success');
+                    setActivePostOptions(null);
+                  }}
+                  className="btn-outline"
+                  style={{
+                    justifyContent: 'flex-start',
+                    gap: '12px',
+                    padding: '12px 16px',
+                    fontSize: '14px',
+                    borderColor: 'rgba(255,255,255,0.08)',
+                    color: '#ffffff'
+                  }}
+                >
+                  <FiCopy size={18} />
+                  Copy Post Link
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </ AnimatePresence>
 
       <style>{`
         @media (max-width: 768px) {

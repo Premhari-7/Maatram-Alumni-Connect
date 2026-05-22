@@ -32,6 +32,14 @@ interface NotificationItem {
   relatedConnectionRequest?: string;
 }
 
+const getUserIdString = (val: any): string => {
+  if (!val) return '';
+  if (typeof val === 'string') return val;
+  if (val._id) return String(val._id);
+  if (val.id) return String(val.id);
+  return String(val);
+};
+
 interface SocketContextProps {
   socket: Socket | null;
   onlineUsers: Set<string>;
@@ -281,17 +289,37 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
 
     // Receive message
     newSocket.on('msg_receive', (msg: Message) => {
-      const activeId = activePartnerIdRef.current;
-      if (activeId && (msg.sender === activeId || msg.recipient === activeId)) {
+      const activeId = getUserIdString(activePartnerIdRef.current);
+      const senderId = getUserIdString(msg.sender);
+      const recipientId = getUserIdString(msg.recipient);
+      if (activeId && (senderId === activeId || recipientId === activeId)) {
         setChatMessages(prev => [...prev, msg]);
       }
       refreshConversations();
     });
 
     newSocket.on('msg_sent', (msg: Message) => {
-      const activeId = activePartnerIdRef.current;
-      if (activeId && (msg.sender === activeId || msg.recipient === activeId)) {
-        setChatMessages(prev => [...prev, msg]);
+      const activeId = getUserIdString(activePartnerIdRef.current);
+      const senderId = getUserIdString(msg.sender);
+      const recipientId = getUserIdString(msg.recipient);
+      if (activeId && (senderId === activeId || recipientId === activeId)) {
+        setChatMessages(prev => {
+          const tempIndex = prev.findIndex(m => 
+            ((m.id && m.id.startsWith('temp_')) || (m._id && m._id.startsWith('temp_'))) &&
+            getUserIdString(m.sender) === senderId &&
+            getUserIdString(m.recipient) === recipientId &&
+            m.text === msg.text
+          );
+          if (tempIndex !== -1) {
+            const updated = [...prev];
+            updated[tempIndex] = msg;
+            return updated;
+          }
+          // Also double check if message already exists with actual ID to prevent double insertion
+          const exists = prev.some(m => (m._id === msg._id || m.id === msg.id) && m._id && msg._id);
+          if (exists) return prev;
+          return [...prev, msg];
+        });
       }
       refreshConversations();
     });
@@ -422,7 +450,7 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
         read: false,
         createdAt: new Date(Date.now() - 3600000 * 0.5).toISOString()
       }
-    ];
+    ].map((m, index) => ({ ...m, id: `mock_msg_seed_${index}` }));
     localStorage.setItem('mock_chat_messages', JSON.stringify(defaultMsgs));
     return defaultMsgs;
   };
@@ -472,6 +500,7 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
 
     if (isMockMode) {
       const newMessage: Message = {
+        id: 'mock_msg_' + Date.now() + '-' + Math.random().toString(36).substring(2, 9),
         sender: user.id,
         recipient: recipientId,
         text,
@@ -485,8 +514,10 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
       localStorage.setItem('mock_chat_messages', JSON.stringify(history));
 
       // Update state if matches active partner
-      const activeId = activePartnerIdRef.current;
-      if (activeId && (newMessage.sender === activeId || newMessage.recipient === activeId)) {
+      const activeId = getUserIdString(activePartnerIdRef.current);
+      const senderId = getUserIdString(newMessage.sender);
+      const targetRecipientId = getUserIdString(newMessage.recipient);
+      if (activeId && (senderId === activeId || targetRecipientId === activeId)) {
         setChatMessages(prev => [...prev, newMessage]);
       }
       refreshConversations();
@@ -494,6 +525,24 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
       // Trigger automatic smart response from mock user!
       simulateMockPartnerResponse(recipientId, text);
     } else if (socket) {
+      // Optimistically append the sent message locally
+      const tempMessage: Message = {
+        id: 'temp_msg_' + Date.now() + '-' + Math.random().toString(36).substring(2, 9),
+        _id: 'temp_msg_' + Date.now() + '-' + Math.random().toString(36).substring(2, 9),
+        sender: user.id || (user as any)._id,
+        recipient: recipientId,
+        text,
+        read: false,
+        createdAt: new Date().toISOString()
+      };
+
+      const activeId = getUserIdString(activePartnerIdRef.current);
+      const senderId = getUserIdString(tempMessage.sender);
+      const targetRecipientId = getUserIdString(tempMessage.recipient);
+      if (activeId && (senderId === activeId || targetRecipientId === activeId)) {
+        setChatMessages(prev => [...prev, tempMessage]);
+      }
+
       socket.emit('private_message', { recipientId, text });
     }
   };
@@ -578,6 +627,7 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
       replyText = replyText.replace(/[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF]/g, "");
 
       const partnerMsg: Message = {
+        id: 'mock_msg_' + Date.now() + '-' + Math.random().toString(36).substring(2, 9),
         sender: partnerId,
         recipient: user?.id || '',
         text: replyText,
@@ -590,8 +640,10 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
       localStorage.setItem('mock_chat_messages', JSON.stringify(history));
 
       // Append to active chat if matches active partner
-      const activeId = activePartnerIdRef.current;
-      if (activeId && (partnerMsg.sender === activeId || partnerMsg.recipient === activeId)) {
+      const activeId = getUserIdString(activePartnerIdRef.current);
+      const senderId = getUserIdString(partnerMsg.sender);
+      const recipientId = getUserIdString(partnerMsg.recipient);
+      if (activeId && (senderId === activeId || recipientId === activeId)) {
         setChatMessages(prev => [...prev, partnerMsg]);
       }
       refreshConversations();
@@ -631,6 +683,15 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
       return () => clearInterval(interval);
     }
   }, [user, fetchNotifications]);
+
+  // Listen for mock notification updates
+  useEffect(() => {
+    const handleMockNotifUpdate = () => {
+      fetchNotifications();
+    };
+    window.addEventListener('mock_notifications_updated', handleMockNotifUpdate);
+    return () => window.removeEventListener('mock_notifications_updated', handleMockNotifUpdate);
+  }, [fetchNotifications]);
 
   const unreadNotifCount = notifications.filter(n => !n.isRead).length;
 

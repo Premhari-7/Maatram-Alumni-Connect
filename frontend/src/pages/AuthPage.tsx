@@ -121,6 +121,12 @@ export const AuthPage = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    const gmailRegex = /^[a-zA-Z0-9._%+-]+@gmail\.com$/i;
+    if (!gmailRegex.test(email)) {
+      showNotification('Invalid Email Format', 'Please enter a valid Gmail address ending in @gmail.com.', 'error');
+      return;
+    }
+
     try {
       if (isLogin) {
         await login(email, password, role, role === 'admin' ? secretAdminCode : undefined);

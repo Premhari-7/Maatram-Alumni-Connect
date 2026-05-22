@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { useAuth, API_URL } from '../context/AuthContext';
+import { useAuth, API_URL, DEFAULT_AVATAR } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
 import { FiSend, FiUser, FiMoreVertical, FiCheck, FiCheckCircle } from 'react-icons/fi';
 import axios from 'axios';
@@ -189,7 +189,7 @@ export const Chat = () => {
                   {/* Avatar wrapper with online status dot indicator */}
                   <div style={{ position: 'relative' }}>
                     <img
-                      src={partner.profile?.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100'}
+                      src={partner.profile?.avatar || DEFAULT_AVATAR}
                       alt={partner.name}
                       style={{
                         width: '42px',
@@ -285,7 +285,7 @@ export const Chat = () => {
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                 <img
-                  src={activePartnerUser.profile?.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100'}
+                  src={activePartnerUser.profile?.avatar || DEFAULT_AVATAR}
                   alt={activePartnerUser.name}
                   style={{ width: '40px', height: '40px', borderRadius: '50%', objectFit: 'cover', border: '1.5px solid var(--color-yellow-primary)' }}
                 />
@@ -328,8 +328,8 @@ export const Chat = () => {
                   No messages in this chat thread. Say hello to start the conversation!
                 </div>
               ) : (
-                chatMessages.map(msg => {
-                  const mId = msg._id || msg.id;
+                chatMessages.map((msg, index) => {
+                  const mId = msg._id || msg.id || `msg-${index}-${msg.createdAt}`;
                   const isSent = (msg.sender?._id || msg.sender?.id || msg.sender) === (user?.id || (user as any)?._id);
 
                   return (

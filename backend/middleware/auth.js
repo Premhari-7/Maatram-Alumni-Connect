@@ -25,3 +25,11 @@ export const adminMiddleware = (req, res, next) => {
     res.status(403).json({ message: 'Access denied. Administrator privileges required' });
   }
 };
+
+export const adminOrAlumniMiddleware = (req, res, next) => {
+  if (req.user && (req.user.role === 'admin' || req.user.role === 'alumni')) {
+    next();
+  } else {
+    res.status(403).json({ message: 'Access denied. Administrator or Alumni privileges required' });
+  }
+};
