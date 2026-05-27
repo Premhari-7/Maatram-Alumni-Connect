@@ -1,8 +1,8 @@
 <div align="center">
 
-<img src="./frontend/public/logo.png" alt="Maatram Foundation Logo" width="200" />
-
-<img src="https://readme-typing-svg.herokuapp.com?font=Inter&weight=800&size=30&pause=1000&color=000000&center=true&vCenter=true&width=600&lines=MAATRAM+ALUMNI+CONNECT;HACKFORGE+2.0+PROJECT;EMPOWERING+THE+COMMUNITY" alt="Typing SVG" />
+<img src="./frontend/public/logo.png" alt="Maatram Foundation Logo" width="120" />
+<br/>
+<img src="./frontend/public/readme-header.svg" alt="Maatram Alumni Connect Animated Banner" width="100%" />
 
 <p align="center">
   <a href="#overview">Overview</a> •

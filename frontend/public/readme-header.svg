@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 200" width="100%" height="100%">
+  <defs>
+    <!-- Background Gradient -->
+    <linearGradient id="bg-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0a0a0a">
+        <animate attributeName="stop-color" values="#0a0a0a;#1a1a2e;#0a0a0a" dur="10s" repeatCount="indefinite" />
+      </stop>
+      <stop offset="100%" stop-color="#111111">
+        <animate attributeName="stop-color" values="#111111;#16213e;#111111" dur="10s" repeatCount="indefinite" />
+      </stop>
+    </linearGradient>
+
+    <!-- Text Gradient -->
+    <linearGradient id="text-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#ffffff" />
+      <stop offset="50%" stop-color="#FFD700" />
+      <stop offset="100%" stop-color="#ffffff" />
+      <animateTransform attributeName="gradientTransform" type="translate" from="-1 0" to="1 0" dur="4s" repeatCount="indefinite" />
+    </linearGradient>
+    
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <rect width="800" height="200" rx="15" fill="url(#bg-grad)" />
+
+  <text x="400" y="90" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="38" font-weight="900" fill="url(#text-grad)" text-anchor="middle" letter-spacing="4" filter="url(#glow)">
+    MAATRAM ALUMNI CONNECT
+  </text>
+  
+  <text x="400" y="130" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="16" font-weight="500" fill="#aaaaaa" text-anchor="middle" letter-spacing="6">
+    HACKFORGE 2.0 WINNING PROJECT
+    <animate attributeName="opacity" values="0.6;1;0.6" dur="3s" repeatCount="indefinite" />
+  </text>
+  
+  <text x="400" y="160" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="14" font-weight="400" fill="#FFD700" text-anchor="middle" letter-spacing="2">
+    Empowering The Community Through Real-Time Connections
+  </text>
+</svg>
