@@ -1,44 +1,63 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 200" width="100%" height="100%">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 180" width="100%" height="100%">
   <defs>
-    <!-- Background Gradient -->
-    <linearGradient id="bg-grad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#0a0a0a">
-        <animate attributeName="stop-color" values="#0a0a0a;#1a1a2e;#0a0a0a" dur="10s" repeatCount="indefinite" />
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0d0d0d">
+        <animate attributeName="stop-color" values="#0d0d0d;#1a1a2e;#0d0d0d" dur="8s" repeatCount="indefinite" />
       </stop>
-      <stop offset="100%" stop-color="#111111">
-        <animate attributeName="stop-color" values="#111111;#16213e;#111111" dur="10s" repeatCount="indefinite" />
+      <stop offset="100%" stop-color="#111827">
+        <animate attributeName="stop-color" values="#111827;#0f172a;#111827" dur="8s" repeatCount="indefinite" />
       </stop>
     </linearGradient>
 
-    <!-- Text Gradient -->
-    <linearGradient id="text-grad" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="#ffffff" />
-      <stop offset="50%" stop-color="#FFD700" />
-      <stop offset="100%" stop-color="#ffffff" />
-      <animateTransform attributeName="gradientTransform" type="translate" from="-1 0" to="1 0" dur="4s" repeatCount="indefinite" />
+    <linearGradient id="gold-sweep" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#e8e8e8" />
+      <stop offset="45%" stop-color="#FFD700" />
+      <stop offset="55%" stop-color="#FFC300" />
+      <stop offset="100%" stop-color="#e8e8e8" />
+      <animateTransform attributeName="gradientTransform" type="translate" from="-1 0" to="1 0" dur="5s" repeatCount="indefinite" />
     </linearGradient>
-    
+
+    <linearGradient id="line-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="transparent" />
+      <stop offset="50%" stop-color="#FFD700">
+        <animate attributeName="stop-color" values="#FFD700;#FFA500;#FFD700" dur="3s" repeatCount="indefinite" />
+      </stop>
+      <stop offset="100%" stop-color="transparent" />
+    </linearGradient>
+
     <filter id="glow">
-      <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
-      <feMerge>
-        <feMergeNode in="coloredBlur"/>
-        <feMergeNode in="SourceGraphic"/>
-      </feMerge>
+      <feGaussianBlur stdDeviation="2" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
     </filter>
   </defs>
 
-  <rect width="800" height="200" rx="15" fill="url(#bg-grad)" />
+  <rect width="800" height="180" rx="12" fill="url(#bg)" />
 
-  <text x="400" y="90" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="38" font-weight="900" fill="url(#text-grad)" text-anchor="middle" letter-spacing="4" filter="url(#glow)">
+  <!-- Decorative animated line top -->
+  <rect x="200" y="20" width="400" height="1.5" rx="1" fill="url(#line-grad)" opacity="0.6">
+    <animate attributeName="width" values="300;400;300" dur="4s" repeatCount="indefinite" />
+    <animate attributeName="x" values="250;200;250" dur="4s" repeatCount="indefinite" />
+  </rect>
+
+  <!-- Main Title -->
+  <text x="400" y="78" font-family="'Segoe UI', system-ui, -apple-system, sans-serif" font-size="36" font-weight="800" fill="url(#gold-sweep)" text-anchor="middle" letter-spacing="5" filter="url(#glow)">
     MAATRAM ALUMNI CONNECT
   </text>
-  
-  <text x="400" y="130" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="16" font-weight="500" fill="#aaaaaa" text-anchor="middle" letter-spacing="6">
-    HACKFORGE 2.0 WINNING PROJECT
-    <animate attributeName="opacity" values="0.6;1;0.6" dur="3s" repeatCount="indefinite" />
+
+  <!-- Subtitle -->
+  <text x="400" y="115" font-family="'Segoe UI', system-ui, -apple-system, sans-serif" font-size="13" font-weight="500" fill="#888888" text-anchor="middle" letter-spacing="5">
+    DEVELOPED DURING HACKFORGE 2.0 BY MAATRAM FOUNDATION
+    <animate attributeName="opacity" values="0.5;1;0.5" dur="4s" repeatCount="indefinite" />
   </text>
-  
-  <text x="400" y="160" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="14" font-weight="400" fill="#FFD700" text-anchor="middle" letter-spacing="2">
-    Empowering The Community Through Real-Time Connections
+
+  <!-- Tagline -->
+  <text x="400" y="145" font-family="'Segoe UI', system-ui, -apple-system, sans-serif" font-size="12" font-weight="400" fill="#FFD700" text-anchor="middle" letter-spacing="2" opacity="0.8">
+    Bridging Alumni, Students &amp; Community Through Technology
   </text>
+
+  <!-- Decorative animated line bottom -->
+  <rect x="200" y="160" width="400" height="1.5" rx="1" fill="url(#line-grad)" opacity="0.6">
+    <animate attributeName="width" values="300;400;300" dur="4s" repeatCount="indefinite" />
+    <animate attributeName="x" values="250;200;250" dur="4s" repeatCount="indefinite" />
+  </rect>
 </svg>

@@ -1,0 +1,175 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 420" width="100%" height="100%">
+  <defs>
+    <linearGradient id="card-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#111111"/>
+      <stop offset="100%" stop-color="#1a1a2e"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#FFD700"/>
+      <stop offset="100%" stop-color="#FFA500"/>
+    </linearGradient>
+    <linearGradient id="cyan" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#00d2ff"/>
+      <stop offset="100%" stop-color="#3a7bd5"/>
+    </linearGradient>
+    <linearGradient id="violet" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#a855f7"/>
+      <stop offset="100%" stop-color="#6366f1"/>
+    </linearGradient>
+    <linearGradient id="green" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#22c55e"/>
+      <stop offset="100%" stop-color="#16a34a"/>
+    </linearGradient>
+    <linearGradient id="rose" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#f43f5e"/>
+      <stop offset="100%" stop-color="#e11d48"/>
+    </linearGradient>
+    <linearGradient id="amber" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#f59e0b"/>
+      <stop offset="100%" stop-color="#d97706"/>
+    </linearGradient>
+    <filter id="glow-sm">
+      <feGaussianBlur stdDeviation="1.5" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <!-- Row 1 -->
+  <!-- Card 1: Real-Time Chat -->
+  <g>
+    <rect x="15" y="10" width="245" height="120" rx="10" fill="url(#card-bg)" stroke="#222" stroke-width="1" opacity="0.95"/>
+    <!-- Chat bubble icon -->
+    <g transform="translate(35, 40)" filter="url(#glow-sm)">
+      <path d="M0 12 C0 5 5 0 12 0 L28 0 C35 0 40 5 40 12 L40 22 C40 29 35 34 28 34 L15 34 L5 42 L7 34 L12 34 C5 34 0 29 0 22Z" fill="none" stroke="url(#cyan)" stroke-width="2">
+        <animate attributeName="stroke-dasharray" values="0,200;160,200" dur="2s" fill="freeze"/>
+      </path>
+      <circle cx="14" cy="17" r="2" fill="url(#cyan)"><animate attributeName="opacity" values="0;1" dur="2s" fill="freeze"/></circle>
+      <circle cx="22" cy="17" r="2" fill="url(#cyan)"><animate attributeName="opacity" values="0;1" dur="2.3s" fill="freeze"/></circle>
+      <circle cx="30" cy="17" r="2" fill="url(#cyan)"><animate attributeName="opacity" values="0;1" dur="2.6s" fill="freeze"/></circle>
+    </g>
+    <text x="85" y="55" font-family="'Segoe UI', system-ui, sans-serif" font-size="13" font-weight="700" fill="url(#cyan)" letter-spacing="0.5">Real-Time Chat</text>
+    <text x="85" y="75" font-family="'Segoe UI', system-ui, sans-serif" font-size="10" fill="#999" letter-spacing="0.3">Private messaging with typing</text>
+    <text x="85" y="90" font-family="'Segoe UI', system-ui, sans-serif" font-size="10" fill="#999" letter-spacing="0.3">indicators and read receipts</text>
+  </g>
+
+  <!-- Card 2: Dynamic Feed -->
+  <g>
+    <rect x="278" y="10" width="245" height="120" rx="10" fill="url(#card-bg)" stroke="#222" stroke-width="1" opacity="0.95"/>
+    <!-- Feed/heart icon -->
+    <g transform="translate(298, 38)" filter="url(#glow-sm)">
+      <path d="M20 36 C12 28 0 22 0 12 C0 5 5 0 11 0 C15 0 18 2 20 5 C22 2 25 0 29 0 C35 0 40 5 40 12 C40 22 28 28 20 36Z" fill="none" stroke="url(#rose)" stroke-width="2">
+        <animate attributeName="stroke-dasharray" values="0,200;140,200" dur="2s" fill="freeze"/>
+      </path>
+      <animateTransform attributeName="transform" type="scale" values="1;1.05;1" dur="1.5s" repeatCount="indefinite" additive="sum" />
+    </g>
+    <text x="348" y="55" font-family="'Segoe UI', system-ui, sans-serif" font-size="13" font-weight="700" fill="url(#rose)" letter-spacing="0.5">Dynamic Feed</text>
+    <text x="348" y="75" font-family="'Segoe UI', system-ui, sans-serif" font-size="10" fill="#999" letter-spacing="0.3">Posts, reactions, comments,</text>
+    <text x="348" y="90" font-family="'Segoe UI', system-ui, sans-serif" font-size="10" fill="#999" letter-spacing="0.3">reposts and media sharing</text>
+  </g>
+
+  <!-- Card 3: Event Management -->
+  <g>
+    <rect x="540" y="10" width="245" height="120" rx="10" fill="url(#card-bg)" stroke="#222" stroke-width="1" opacity="0.95"/>
+    <!-- Calendar icon -->
+    <g transform="translate(560, 36)" filter="url(#glow-sm)">
+      <rect x="2" y="6" width="36" height="32" rx="4" fill="none" stroke="url(#green)" stroke-width="2">
+        <animate attributeName="stroke-dasharray" values="0,200;140,200" dur="2s" fill="freeze"/>
+      </rect>
+      <line x1="2" y1="16" x2="38" y2="16" stroke="url(#green)" stroke-width="2" opacity="0.6"/>
+      <line x1="12" y1="2" x2="12" y2="10" stroke="url(#green)" stroke-width="2" stroke-linecap="round"/>
+      <line x1="28" y1="2" x2="28" y2="10" stroke="url(#green)" stroke-width="2" stroke-linecap="round"/>
+      <circle cx="20" cy="28" r="4" fill="url(#green)" opacity="0.5">
+        <animate attributeName="opacity" values="0.3;0.8;0.3" dur="2s" repeatCount="indefinite"/>
+      </circle>
+    </g>
+    <text x="610" y="55" font-family="'Segoe UI', system-ui, sans-serif" font-size="13" font-weight="700" fill="url(#green)" letter-spacing="0.5">Event Management</text>
+    <text x="610" y="75" font-family="'Segoe UI', system-ui, sans-serif" font-size="10" fill="#999" letter-spacing="0.3">Organize events, RSVP and</text>
+    <text x="610" y="90" font-family="'Segoe UI', system-ui, sans-serif" font-size="10" fill="#999" letter-spacing="0.3">track schedules dynamically</text>
+  </g>
+
+  <!-- Row 2 -->
+  <!-- Card 4: AI Chatbot -->
+  <g>
+    <rect x="15" y="150" width="245" height="120" rx="10" fill="url(#card-bg)" stroke="#222" stroke-width="1" opacity="0.95"/>
+    <!-- Brain/AI icon -->
+    <g transform="translate(35, 178)" filter="url(#glow-sm)">
+      <circle cx="20" cy="18" r="16" fill="none" stroke="url(#violet)" stroke-width="2">
+        <animate attributeName="stroke-dasharray" values="0,200;100,200" dur="2s" fill="freeze"/>
+      </circle>
+      <path d="M12 18 Q16 10 20 14 Q24 10 28 18" fill="none" stroke="url(#violet)" stroke-width="1.5" stroke-linecap="round">
+        <animate attributeName="opacity" values="0.4;1;0.4" dur="3s" repeatCount="indefinite"/>
+      </path>
+      <circle cx="20" cy="22" r="2" fill="url(#violet)">
+        <animate attributeName="r" values="1.5;3;1.5" dur="2s" repeatCount="indefinite"/>
+      </circle>
+    </g>
+    <text x="85" y="195" font-family="'Segoe UI', system-ui, sans-serif" font-size="13" font-weight="700" fill="url(#violet)" letter-spacing="0.5">AI Chatbot</text>
+    <text x="85" y="215" font-family="'Segoe UI', system-ui, sans-serif" font-size="10" fill="#999" letter-spacing="0.3">Integrated NLP assistant for</text>
+    <text x="85" y="230" font-family="'Segoe UI', system-ui, sans-serif" font-size="10" fill="#999" letter-spacing="0.3">navigation and inquiries</text>
+  </g>
+
+  <!-- Card 5: Profile System -->
+  <g>
+    <rect x="278" y="150" width="245" height="120" rx="10" fill="url(#card-bg)" stroke="#222" stroke-width="1" opacity="0.95"/>
+    <!-- User/profile icon -->
+    <g transform="translate(298, 176)" filter="url(#glow-sm)">
+      <circle cx="20" cy="12" r="9" fill="none" stroke="url(#gold)" stroke-width="2">
+        <animate attributeName="stroke-dasharray" values="0,100;60,100" dur="1.8s" fill="freeze"/>
+      </circle>
+      <path d="M4 38 C4 28 12 22 20 22 C28 22 36 28 36 38" fill="none" stroke="url(#gold)" stroke-width="2" stroke-linecap="round">
+        <animate attributeName="stroke-dasharray" values="0,100;55,100" dur="2.2s" fill="freeze"/>
+      </path>
+    </g>
+    <text x="348" y="195" font-family="'Segoe UI', system-ui, sans-serif" font-size="13" font-weight="700" fill="url(#gold)" letter-spacing="0.5">Profile System</text>
+    <text x="348" y="215" font-family="'Segoe UI', system-ui, sans-serif" font-size="10" fill="#999" letter-spacing="0.3">Avatars, experience, skills,</text>
+    <text x="348" y="230" font-family="'Segoe UI', system-ui, sans-serif" font-size="10" fill="#999" letter-spacing="0.3">social links and privacy toggle</text>
+  </g>
+
+  <!-- Card 6: Admin Analytics -->
+  <g>
+    <rect x="540" y="150" width="245" height="120" rx="10" fill="url(#card-bg)" stroke="#222" stroke-width="1" opacity="0.95"/>
+    <!-- Chart icon -->
+    <g transform="translate(560, 178)" filter="url(#glow-sm)">
+      <rect x="4" y="24" width="8" height="14" rx="2" fill="url(#amber)">
+        <animate attributeName="height" values="0;14" dur="1s" fill="freeze"/>
+        <animate attributeName="y" values="38;24" dur="1s" fill="freeze"/>
+      </rect>
+      <rect x="16" y="14" width="8" height="24" rx="2" fill="url(#amber)">
+        <animate attributeName="height" values="0;24" dur="1.3s" fill="freeze"/>
+        <animate attributeName="y" values="38;14" dur="1.3s" fill="freeze"/>
+      </rect>
+      <rect x="28" y="4" width="8" height="34" rx="2" fill="url(#amber)">
+        <animate attributeName="height" values="0;34" dur="1.6s" fill="freeze"/>
+        <animate attributeName="y" values="38;4" dur="1.6s" fill="freeze"/>
+      </rect>
+    </g>
+    <text x="610" y="195" font-family="'Segoe UI', system-ui, sans-serif" font-size="13" font-weight="700" fill="url(#amber)" letter-spacing="0.5">Admin Analytics</text>
+    <text x="610" y="215" font-family="'Segoe UI', system-ui, sans-serif" font-size="10" fill="#999" letter-spacing="0.3">Network stats, user management</text>
+    <text x="610" y="230" font-family="'Segoe UI', system-ui, sans-serif" font-size="10" fill="#999" letter-spacing="0.3">and platform oversight</text>
+  </g>
+
+  <!-- Row 3: Bonus features bar -->
+  <g>
+    <rect x="15" y="295" width="770" height="110" rx="10" fill="url(#card-bg)" stroke="#222" stroke-width="1" opacity="0.9"/>
+    
+    <text x="400" y="325" font-family="'Segoe UI', system-ui, sans-serif" font-size="14" font-weight="700" fill="#ffffff" text-anchor="middle" letter-spacing="2">ALSO INCLUDES</text>
+    
+    <rect x="200" y="335" width="400" height="1" fill="#333"/>
+
+    <!-- Mini feature badges -->
+    <text x="105" y="370" font-family="'Segoe UI', system-ui, sans-serif" font-size="11" font-weight="600" fill="url(#cyan)" text-anchor="middle">Notifications</text>
+    <text x="105" y="387" font-family="'Segoe UI', system-ui, sans-serif" font-size="9" fill="#666" text-anchor="middle">Real-time alerts</text>
+
+    <text x="265" y="370" font-family="'Segoe UI', system-ui, sans-serif" font-size="11" font-weight="600" fill="url(#green)" text-anchor="middle">Connections</text>
+    <text x="265" y="387" font-family="'Segoe UI', system-ui, sans-serif" font-size="9" fill="#666" text-anchor="middle">Follow and network</text>
+
+    <text x="400" y="370" font-family="'Segoe UI', system-ui, sans-serif" font-size="11" font-weight="600" fill="url(#violet)" text-anchor="middle">Media Uploads</text>
+    <text x="400" y="387" font-family="'Segoe UI', system-ui, sans-serif" font-size="9" fill="#666" text-anchor="middle">Cloudinary powered</text>
+
+    <text x="535" y="370" font-family="'Segoe UI', system-ui, sans-serif" font-size="11" font-weight="600" fill="url(#rose)" text-anchor="middle">Role-Based Access</text>
+    <text x="535" y="387" font-family="'Segoe UI', system-ui, sans-serif" font-size="9" fill="#666" text-anchor="middle">Admin, Alumni, Student</text>
+
+    <text x="695" y="370" font-family="'Segoe UI', system-ui, sans-serif" font-size="11" font-weight="600" fill="url(#gold)" text-anchor="middle">Mobile Responsive</text>
+    <text x="695" y="387" font-family="'Segoe UI', system-ui, sans-serif" font-size="9" fill="#666" text-anchor="middle">Fully optimized UI</text>
+  </g>
+</svg>

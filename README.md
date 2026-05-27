@@ -38,14 +38,9 @@ It features real-time messaging, interactive event management, dynamic post feed
 
 <h2 id="features" align="center">Core Features</h2>
 
-<ul>
-  <li><b>Real-Time Chat & Networking</b><br/>Establish private connections and communicate seamlessly using WebSocket technology, complete with typing indicators and read receipts.</li>
-  <li><b>Dynamic Feed & Interactions</b><br/>Create posts, share media, react, comment, and repost content. The feed is optimized for continuous scrolling and rapid engagement.</li>
-  <li><b>Event Management</b><br/>Administrators can organize events, while users can RSVP and track upcoming schedules dynamically.</li>
-  <li><b>AI Chatbot Assistant</b><br/>An integrated, floating AI chatbot utilizing natural language processing to assist users with platform navigation and inquiries.</li>
-  <li><b>Advanced Profile System</b><br/>Customizable profiles with avatars, cover photos, academic details, professional experience, and social links. Users can toggle profile privacy.</li>
-  <li><b>Admin Analytics</b><br/>A comprehensive administrative dashboard to monitor network statistics, manage users, and oversee platform activity.</li>
-</ul>
+<div align="center">
+<img src="./frontend/public/readme-features.svg" alt="Features Showcase" width="100%" />
+</div>
 
 ---
 
