@@ -4,6 +4,7 @@ import User from '../models/User.js';
 import Notification from '../models/Notification.js';
 import { authMiddleware, adminMiddleware, adminOrAlumniMiddleware } from '../middleware/auth.js';
 import { getIO, getSocketIdByUserId } from '../sockets/chat.js';
+import { uploadEventMedia } from '../config/cloudinary.js';
 
 const router = express.Router();
 
@@ -36,12 +37,19 @@ router.get('/:id', authMiddleware, async (req, res) => {
 });
 
 // Admin / Alumni: Create Event
-router.post('/', authMiddleware, adminOrAlumniMiddleware, async (req, res) => {
+router.post('/', authMiddleware, adminOrAlumniMiddleware, uploadEventMedia.single('poster'), async (req, res) => {
   try {
-    const { title, description, type, date, location, poster, speaker } = req.body;
+    const { title, description, type, date, location, speaker } = req.body;
 
     if (!title || !description || !type || !date || !location) {
       return res.status(400).json({ message: 'Please provide all required event details' });
+    }
+
+    let posterUrl = '';
+    if (req.file) {
+      posterUrl = req.file.path || req.file.secure_url;
+    } else if (req.body.poster) {
+      posterUrl = req.body.poster;
     }
 
     const newEvent = new Event({
@@ -50,7 +58,7 @@ router.post('/', authMiddleware, adminOrAlumniMiddleware, async (req, res) => {
       type,
       date,
       location,
-      poster: poster || '',
+      poster: posterUrl,
       speaker: speaker || '',
       createdBy: req.user.id
     });
@@ -118,7 +126,12 @@ router.post('/register/:id', authMiddleware, async (req, res) => {
     }
 
     await event.save();
-    res.json({ registered, registrations: event.registrations });
+
+    // Populate registrations so the frontend gets full user objects (name, email, role, avatar)
+    const populatedEvent = await Event.findById(event._id)
+      .populate('registrations', 'name email role profile');
+
+    res.json({ registered, registrations: populatedEvent.registrations });
   } catch (error) {
     res.status(500).json({ message: 'Server error toggling event registration' });
   }
@@ -146,12 +159,56 @@ router.post('/announcement/:id', authMiddleware, adminMiddleware, async (req, re
   }
 });
 
-// Admin: Delete Event
-router.delete('/:id', authMiddleware, adminMiddleware, async (req, res) => {
+// Admin / Alumni: Update Event
+router.put('/:id', authMiddleware, adminOrAlumniMiddleware, async (req, res) => {
+  try {
+    const { title, description, type, date, location, poster, speaker } = req.body;
+    
+    if (!title || !description || !type || !date || !location) {
+      return res.status(400).json({ message: 'Please provide all required event details' });
+    }
+
+    const event = await Event.findById(req.params.id);
+    if (!event) {
+      return res.status(404).json({ message: 'Event not found' });
+    }
+
+    // Check if user is admin or the creator of the event
+    if (req.user.role !== 'admin' && event.createdBy.toString() !== req.user.id) {
+      return res.status(403).json({ message: 'Not authorized to update this event' });
+    }
+
+    event.title = title;
+    event.description = description;
+    event.type = type;
+    event.date = date;
+    event.location = location;
+    if (poster !== undefined) event.poster = poster;
+    if (speaker !== undefined) event.speaker = speaker;
+
+    await event.save();
+
+    const updatedEvent = await Event.findById(event._id)
+      .populate('createdBy', 'name email role')
+      .populate('registrations', 'name email role profile');
+
+    res.json(updatedEvent);
+  } catch (error) {
+    console.error('Update event error:', error);
+    res.status(500).json({ message: 'Server error updating event' });
+  }
+});
+
+// Admin / Creator: Delete Event
+router.delete('/:id', authMiddleware, adminOrAlumniMiddleware, async (req, res) => {
   try {
     const event = await Event.findById(req.params.id);
     if (!event) {
       return res.status(404).json({ message: 'Event not found' });
+    }
+
+    if (req.user.role !== 'admin' && event.createdBy.toString() !== req.user.id) {
+      return res.status(403).json({ message: 'Not authorized to delete this event' });
     }
 
     await Event.findByIdAndDelete(req.params.id);

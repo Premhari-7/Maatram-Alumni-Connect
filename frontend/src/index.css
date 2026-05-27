@@ -272,3 +272,202 @@ h1, h2, h3, h4, h5, h6 {
   transform: scale(1.4) translateY(-4px);
 }
 
+
+/* Responsive Utilities */
+.dashboard-layout {
+  min-height: 100vh;
+  background: #050505;
+  display: flex;
+  gap: 24px;
+  padding: 20px 5% 20px 20px;
+  position: relative;
+}
+
+.sidebar-container {
+  width: 260px;
+  height: calc(100vh - 40px);
+  position: sticky;
+  top: 20px;
+  display: flex;
+  flex-direction: column;
+  padding: 24px 16px;
+  z-index: 100;
+  gap: 28px;
+  border-color: rgba(255, 215, 0, 0.1);
+}
+
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-left: 8px;
+}
+
+.mobile-logout-btn {
+  display: none;
+}
+
+.sidebar-nav {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sidebar-footer {
+  border-top: 1px solid var(--color-border-glass);
+  padding-top: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.main-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  min-width: 0;
+}
+
+.top-header {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  padding: 12px 24px;
+  background: rgba(10, 10, 10, 0.6);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.03);
+  border-radius: 16px;
+  position: relative;
+  z-index: 100;
+}
+
+@media screen and (max-width: 768px) {
+  body {
+    padding: 0;
+    margin: 0;
+    overflow-x: hidden;
+  }
+  .glass-panel, .glass-card {
+    border-radius: 8px;
+    padding: 10px !important;
+  }
+  .form-input {
+    font-size: 14px;
+    padding: 10px;
+  }
+  
+  /* Mobile Layout Overrides */
+  .dashboard-layout {
+    flex-direction: column;
+    padding: 10px;
+    gap: 10px;
+    padding-bottom: 80px; /* Space for bottom nav */
+  }
+
+  .sidebar-container {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    top: auto;
+    width: 100%;
+    height: auto;
+    flex-direction: row;
+    justify-content: space-around;
+    padding: 10px 5px !important;
+    background: rgba(10, 10, 10, 0.98);
+    backdrop-filter: blur(14px);
+    border-top: 1px solid var(--color-yellow-primary);
+    border-radius: 20px 20px 0 0 !important;
+    z-index: 1000;
+    gap: 0;
+    margin: 0;
+  }
+
+  .sidebar-header, .sidebar-footer {
+    display: none !important;
+  }
+
+  .sidebar-nav {
+    flex-direction: row !important;
+    width: 100%;
+    justify-content: space-around;
+    gap: 0 !important;
+  }
+
+  .sidebar-nav a {
+    flex-direction: column !important;
+    padding: 8px 4px !important;
+    font-size: 10px !important;
+    gap: 4px !important;
+    border-radius: 8px !important;
+    flex: 1;
+    text-align: center;
+    justify-content: center;
+    border: none !important;
+  }
+  
+  .sidebar-nav a span {
+    display: none; /* Hide text on very small screens to save space */
+  }
+
+  .mobile-logout-btn {
+    display: flex !important;
+    flex-direction: column !important;
+    padding: 8px 4px !important;
+    font-size: 10px !important;
+    gap: 4px !important;
+    border-radius: 8px !important;
+    flex: 1;
+    text-align: center;
+    justify-content: center;
+    align-items: center;
+    background: transparent;
+    border: none !important;
+    color: #ff4444;
+    cursor: pointer;
+  }
+  
+  .mobile-logout-btn span {
+    display: none;
+  }
+  
+  .top-header {
+    padding: 10px 15px;
+    border-radius: 8px;
+  }
+  
+  .main-content {
+    margin-bottom: 20px;
+  }
+
+  /* Global Grid Overrides for Mobile */
+  .admin-stats-grid,
+  .admin-body-grid,
+  .settings-grid,
+  .admin-event-form,
+  .testimonials-grid,
+  .about-grid,
+  .hero-grid,
+  .profile-brief-grid,
+  .profile-meta-row,
+  .profile-under-grid {
+    grid-template-columns: 1fr !important;
+  }
+  
+  /* Connections and Event cards can be 1fr on mobile */
+  .connections-grid,
+  .events-grid,
+  .profile-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Universal rule for direct inline style grids that have 2+ columns, if possible. 
+     Since we can't easily select inline styles directly and override cleanly without !important on specific selectors, 
+     we will target elements where the inline styles are applied if they don't have classes. */
+  div[style*="gridTemplateColumns"],
+  div[style*="grid-template-columns"] {
+    grid-template-columns: 1fr !important;
+  }
+}

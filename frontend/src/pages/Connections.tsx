@@ -3,7 +3,7 @@ import { useAuth, API_URL, DEFAULT_AVATAR } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
 import { useSocket } from '../context/SocketContext';
 import { useNavigate } from 'react-router-dom';
-import { FiSearch, FiFilter, FiUserCheck, FiUserPlus, FiMessageSquare, FiSliders, FiLoader, FiLock, FiClock, FiX, FiUsers, FiUserMinus } from 'react-icons/fi';
+import { FiSearch, FiFilter, FiUserCheck, FiUserPlus, FiMessageSquare, FiSliders, FiLoader, FiLock, FiClock, FiX, FiUsers, FiUserMinus, FiShield } from 'react-icons/fi';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -37,7 +37,7 @@ interface PendingRequest {
 }
 
 export const Connections = () => {
-  const { user, token, isMockMode, refreshUser } = useAuth();
+  const { user, token, refreshUser } = useAuth();
   const { showNotification } = useNotification();
   const { fetchNotifications } = useSocket();
   const navigate = useNavigate();
@@ -57,6 +57,7 @@ export const Connections = () => {
   const [search, setSearch] = useState('');
   const [filterRole, setFilterRole] = useState<'all' | 'student' | 'alumni'>('all');
   const [filterDept, setFilterDept] = useState('all');
+ 
 
   const fetchUsers = useCallback(async () => {
     if (!user) {
@@ -64,37 +65,22 @@ export const Connections = () => {
       return;
     }
     
-    if (isMockMode) {
-      const mockUsersStr = localStorage.getItem('mock_db_users');
-      if (mockUsersStr) {
-        try {
-          const list = JSON.parse(mockUsersStr) as ProfileUser[];
-          const userId = user?.id || (user as any)?._id;
-          setUsers(list.filter(u => (u._id || u.id) !== userId));
-        } catch {
-          setUsers([]);
-        }
-      }
+    try {
+      const res = await axios.get(`${API_URL}/users`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const userId = user?.id || (user as any)?._id;
+      setUsers((res.data || []).filter((u: any) => u._id !== userId));
+    } catch (err) {
+      console.error('Error fetching users:', err);
+      setUsers([]);
+    } finally {
       setLoading(false);
-    } else {
-      try {
-        const res = await axios.get(`${API_URL}/users`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        const userId = user?.id || (user as any)?._id;
-        setUsers((res.data || []).filter((u: any) => u._id !== userId));
-      } catch (err) {
-        console.error('Error fetching users:', err);
-        setUsers([]);
-      } finally {
-        setLoading(false);
-      }
     }
-  }, [isMockMode, user, token]);
+  }, [user, token]);
 
-  // Fetch connection statuses for all users
   const fetchConnectionStatuses = useCallback(async () => {
-    if (!user || isMockMode) return;
+    if (!user) return;
     const statuses: { [userId: string]: ConnectionStatus } = {};
     
     for (const u of users) {
@@ -108,11 +94,10 @@ export const Connections = () => {
       }
     }
     setConnectionStatuses(statuses);
-  }, [users, user, token, isMockMode]);
+  }, [users, user, token]);
 
-  // Fetch pending requests
   const fetchPendingRequests = useCallback(async () => {
-    if (!user || isMockMode) return;
+    if (!user) return;
     try {
       const res = await axios.get(`${API_URL}/connections/pending`, {
         headers: { Authorization: `Bearer ${token}` }
@@ -122,25 +107,21 @@ export const Connections = () => {
       console.error('Error fetching pending requests:', err);
       setPendingRequests([]);
     }
-  }, [user, token, isMockMode]);
+  }, [user, token]);
 
   useEffect(() => {
     fetchUsers();
   }, [fetchUsers]);
 
   useEffect(() => {
-    if (users.length > 0 && !isMockMode) {
+    if (users.length > 0) {
       fetchConnectionStatuses();
       fetchPendingRequests();
     }
-  }, [users, fetchConnectionStatuses, fetchPendingRequests, isMockMode]);
+  }, [users, fetchConnectionStatuses, fetchPendingRequests]);
 
-  // Get connection status (mock or real)
+  // Get connection status
   const getConnectionStatus = (targetUserId: string): ConnectionStatus => {
-    if (isMockMode) {
-      const userConns = user?.connections || [];
-      return userConns.includes(targetUserId) ? 'connected' : 'none';
-    }
     return connectionStatuses[targetUserId] || (user?.connections?.includes(targetUserId) ? 'connected' : 'none');
   };
 
@@ -152,7 +133,7 @@ export const Connections = () => {
     } else if (status === 'pending_sent') {
       showNotification('Request Pending', 'Your connection request is already pending approval.', 'info');
     } else {
-      const isPrivate = targetUser.isPrivate || false;
+      const isPrivate = (targetUser.isPrivate && targetUser.role !== 'admin') || false;
       setConnectPopup({ show: true, user: targetUser, isPrivate });
     }
   };
@@ -163,55 +144,20 @@ export const Connections = () => {
     setActionLoading(true);
     const targetId = connectPopup.user._id || connectPopup.user.id;
 
-    if (isMockMode) {
-      // Mock mode: instant connect (no pending for mock)
-      const mockUsersStr = localStorage.getItem('mock_db_users');
-      const currentUserStr = localStorage.getItem('maatram_user');
-      if (mockUsersStr && currentUserStr) {
-        const allUsers = JSON.parse(mockUsersStr) as ProfileUser[];
-        const curr = JSON.parse(currentUserStr);
-
-        const updatedUsers = allUsers.map(u => {
-          if ((u._id || u.id) === targetId) {
-            if (!u.connections.includes(curr.id || curr._id)) {
-              u.connections.push(curr.id || curr._id);
-            }
-          }
-          if ((u._id || u.id) === (curr.id || curr._id)) {
-            if (!u.connections.includes(targetId!)) {
-              u.connections.push(targetId!);
-            }
-          }
-          return u;
-        });
-
-        if (!curr.connections.includes(targetId)) {
-          curr.connections.push(targetId);
-        }
-
-        localStorage.setItem('mock_db_users', JSON.stringify(updatedUsers));
-        localStorage.setItem('maatram_user', JSON.stringify(curr));
-
-        setUsers(updatedUsers.filter(u => (u._id || u.id) !== (curr.id || curr._id)));
+    try {
+      const res = await axios.post(`${API_URL}/connections/request`, { targetUserId: targetId }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.data.status === 'pending') {
+        setConnectionStatuses(prev => ({ ...prev, [targetId!]: 'pending_sent' }));
+        showNotification('Request Sent', 'Connection request sent. Waiting for approval.', 'info');
+      } else {
+        setConnectionStatuses(prev => ({ ...prev, [targetId!]: 'connected' }));
         refreshUser();
-        showNotification('Connected', `You are now connected with ${connectPopup.user.name}!`, 'success');
+        showNotification('Connected', `You are now connected with ${connectPopup.user?.name}!`, 'success');
       }
-    } else {
-      try {
-        const res = await axios.post(`${API_URL}/connections/request`, { targetUserId: targetId }, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        if (res.data.status === 'pending') {
-          setConnectionStatuses(prev => ({ ...prev, [targetId!]: 'pending_sent' }));
-          showNotification('Request Sent', 'Connection request sent. Waiting for approval.', 'info');
-        } else {
-          setConnectionStatuses(prev => ({ ...prev, [targetId!]: 'connected' }));
-          refreshUser();
-          showNotification('Connected', `You are now connected with ${connectPopup.user?.name}!`, 'success');
-        }
-      } catch (err: any) {
-        showNotification('Error', err.response?.data?.message || 'Failed to send connection request.', 'error');
-      }
+    } catch (err: any) {
+      showNotification('Error', err.response?.data?.message || 'Failed to send connection request.', 'error');
     }
     setActionLoading(false);
     setConnectPopup({ show: false, user: null, isPrivate: false });
@@ -223,43 +169,15 @@ export const Connections = () => {
     setActionLoading(true);
     const targetId = disconnectPopup.user._id || disconnectPopup.user.id;
 
-    if (isMockMode) {
-      const mockUsersStr = localStorage.getItem('mock_db_users');
-      const currentUserStr = localStorage.getItem('maatram_user');
-      if (mockUsersStr && currentUserStr) {
-        const allUsers = JSON.parse(mockUsersStr) as ProfileUser[];
-        const curr = JSON.parse(currentUserStr);
-
-        const updatedUsers = allUsers.map(u => {
-          if ((u._id || u.id) === targetId) {
-            u.connections = u.connections.filter(id => id !== (curr.id || curr._id));
-          }
-          if ((u._id || u.id) === (curr.id || curr._id)) {
-            u.connections = u.connections.filter(id => id !== targetId);
-          }
-          return u;
-        });
-
-        curr.connections = curr.connections.filter((id: string) => id !== targetId);
-
-        localStorage.setItem('mock_db_users', JSON.stringify(updatedUsers));
-        localStorage.setItem('maatram_user', JSON.stringify(curr));
-
-        setUsers(updatedUsers.filter(u => (u._id || u.id) !== (curr.id || curr._id)));
-        refreshUser();
-        showNotification('Disconnected', `You have disconnected from ${disconnectPopup.user.name}.`, 'info');
-      }
-    } else {
-      try {
-        await axios.post(`${API_URL}/connections/disconnect/${targetId}`, {}, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        setConnectionStatuses(prev => ({ ...prev, [targetId!]: 'none' }));
-        refreshUser();
-        showNotification('Disconnected', `You have disconnected from ${disconnectPopup.user?.name}.`, 'info');
-      } catch (err: any) {
-        showNotification('Error', err.response?.data?.message || 'Failed to disconnect.', 'error');
-      }
+    try {
+      await axios.post(`${API_URL}/connections/disconnect/${targetId}`, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setConnectionStatuses(prev => ({ ...prev, [targetId!]: 'none' }));
+      refreshUser();
+      showNotification('Disconnected', `You have disconnected from ${disconnectPopup.user?.name}.`, 'info');
+    } catch (err: any) {
+      showNotification('Error', err.response?.data?.message || 'Failed to disconnect.', 'error');
     }
     setActionLoading(false);
     setDisconnectPopup({ show: false, user: null });
@@ -305,7 +223,7 @@ export const Connections = () => {
   const handleStartChat = (targetUser: ProfileUser) => {
     const targetId = targetUser._id || targetUser.id;
     const status = getConnectionStatus(targetId || '');
-    if (targetUser.isPrivate && status !== 'connected') {
+    if (targetUser.isPrivate && targetUser.role !== 'admin' && status !== 'connected') {
       showNotification('Private Account', 'You need to be connected with this user to send messages.', 'warning');
       return;
     }
@@ -319,7 +237,7 @@ export const Connections = () => {
 
     switch (status) {
       case 'connected':
-        return { icon: <FiUserCheck />, text: 'Connected', style: 'connected' as const };
+        return { icon: <FiUserMinus />, text: 'Remove Connection', style: 'connected' as const };
       case 'pending_sent':
         return { icon: <FiClock />, text: 'Pending', style: 'pending' as const };
       case 'pending_received':
@@ -408,7 +326,7 @@ export const Connections = () => {
             borderColor: activeTab === 'pending' ? 'var(--color-yellow-primary)' : 'rgba(255,255,255,0.1)'
           }}
         >
-          <FiClock size={14} /> Pending Requests
+          <FiClock size={14} /> Connection Requests
           {pendingRequests.length > 0 && (
             <span style={{
               background: '#ff4444',
@@ -423,6 +341,7 @@ export const Connections = () => {
             </span>
           )}
         </button>
+
       </div>
 
       {/* Pending Requests Tab */}
@@ -665,7 +584,7 @@ export const Connections = () => {
                             cursor: 'pointer'
                           }}
                         />
-                        {u.isPrivate && (
+                        {u.isPrivate && u.role !== 'admin' && (
                           <div style={{
                             position: 'absolute',
                             bottom: '-1px',
@@ -787,7 +706,7 @@ export const Connections = () => {
                           padding: '8px 12px',
                           borderRadius: '8px',
                           fontSize: '12px',
-                          opacity: u.isPrivate && getConnectionStatus(targetId) !== 'connected' ? 0.4 : 1
+                          opacity: u.isPrivate && u.role !== 'admin' && getConnectionStatus(targetId) !== 'connected' ? 0.4 : 1
                         }}
                       >
                         <FiMessageSquare /> Message

@@ -30,7 +30,7 @@ router.post('/', authMiddleware, async (req, res) => {
             messages: [
               {
                 role: 'system',
-                content: 'You are the Maatram Alumni Connect AI Assistant. You guide students and alumni of the Maatram Foundation. Do NOT use emojis. Keep it professional. Answer with empathy and support.'
+                content: 'You are Maatram Jarvis, the official AI Assistant for Maatram Alumni Connect and the Maatram Foundation. The Maatram Foundation provides free higher education to deserving students from economically deprived backgrounds. You guide students and alumni with empathy, professionalism, and short, concise answers. Do NOT use emojis.'
               },
               { role: 'user', content: message }
             ]
@@ -56,9 +56,9 @@ router.post('/', authMiddleware, async (req, res) => {
           body: JSON.stringify({
             contents: [{
               parts: [{
-                text: `You are an AI Assistant for Maatram Alumni Connect, a premium, futuristic networking platform for Maatram Foundation. 
+                text: `You are Maatram Jarvis, the AI Assistant for Maatram Alumni Connect, a premium, futuristic networking platform for Maatram Foundation. 
                        Maatram Foundation provides free higher education to deserving students from economically deprived backgrounds.
-                       Your styling and theme is black and yellow. Answer professionally and with empathy. Do not use emojis in your response. Keep it concise.
+                       Your styling and theme is black and yellow. Answer professionally and with empathy. Always identify yourself as Maatram Jarvis. Do not use emojis in your response. Keep it concise.
                        User message: ${message}`
               }]
             }]
@@ -81,6 +81,10 @@ router.post('/', authMiddleware, async (req, res) => {
 
     if (msgLower.includes('who') || msgLower.includes('about') || msgLower.includes('maatram') || msgLower.includes('foundation')) {
       reply = "Maatram Foundation is a registered public charitable trust started in 2013 with the mission of providing free higher education to deserving students from economically deprived backgrounds. We act as a bridge between partner educational institutions and students who cannot afford higher education. This platform, Maatram Alumni Connect, is our premium space for alumni to network, mentor current students, and share career opportunities.";
+    } else if (msgLower.includes('programs') || msgLower.includes('initiatives') || msgLower.includes('support')) {
+      reply = "Maatram Foundation leads transformation by providing quality sponsored education, continuous skill development, and employability training. We support students from admissions through their career journeys via structured mentorship programs.";
+    } else if (msgLower.includes('founder') || msgLower.includes('team') || msgLower.includes('contact')) {
+      reply = "Maatram Foundation was founded by a team of dedicated individuals passionate about education. You can learn more about our core team or contact us directly on our main website at www.maatramfoundation.com.";
     } else if (msgLower.includes('connect') || msgLower.includes('people') || msgLower.includes('find') || msgLower.includes('student') || msgLower.includes('alumni')) {
       reply = "You can search and connect with other users in the 'Connections' section. Filter by department, skills, batch, or current company. Once you find someone, click 'Connect' to establish a link. You can then chat with them in real-time in the 'Messages' section.";
     } else if (msgLower.includes('chat') || msgLower.includes('message') || msgLower.includes('write')) {
@@ -94,9 +98,9 @@ router.post('/', authMiddleware, async (req, res) => {
     } else if (msgLower.includes('admin') || msgLower.includes('verify') || msgLower.includes('status')) {
       reply = "Alumni signups require verification by administrators to maintain community integrity. Once verified, you will gain full access to alumni networking and posting. Admins can manage all verification requests, edit events, and moderate content from their dedicated Admin Panel.";
     } else if (msgLower.includes('hello') || msgLower.includes('hi') || msgLower.includes('hey') || msgLower.includes('greetings')) {
-      reply = "Hello! I am your Maatram Alumni Connect AI assistant. How can I help you today? I can help with platform navigation, explain how to register for events, find mentors, or share information about the Maatram Foundation.";
+      reply = "Hello, I’m Maatram Jarvis! How can I assist you today? I can help with platform navigation, explain how to register for events, find mentors, or share information about the Maatram Foundation.";
     } else {
-      reply = "Thank you for reaching out. As an AI assistant built for Maatram Alumni Connect, I can guide you through using the platform. You can check the 'Feed' to see updates, 'Connections' to find alumni, 'Events' to register for webinars, and 'Messages' to chat in real-time. What would you like to explore?";
+      reply = "Thank you for reaching out. I am Maatram Jarvis. I can guide you through using the platform or answer questions about the Maatram Foundation. You can check the 'Feed' to see updates, 'Connections' to find alumni, 'Events' to register for webinars, and 'Messages' to chat in real-time. What would you like to explore?";
     }
 
     // Double-check no emojis are returned

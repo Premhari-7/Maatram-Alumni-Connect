@@ -193,11 +193,12 @@ export const TreeAnimation = ({ progress, isLoggedIn }: TreeAnimationProps) => {
             ry="18"
             fill="url(#bookShadow)"
             animate={{
-              rx: [90, 75, 90],
-              ry: [18, 14, 18],
+              scaleX: [1, 0.83, 1],
+              scaleY: [1, 0.77, 1],
               opacity: [0.4 + actualProgress * 0.4, 0.2 + actualProgress * 0.2, 0.4 + actualProgress * 0.4]
             }}
             transition={{ duration: 7, repeat: Infinity, ease: 'easeInOut' }}
+            style={{ transformOrigin: '200px 310px' }}
           />
 
           {/* Floating book group */}
@@ -283,12 +284,12 @@ export const TreeAnimation = ({ progress, isLoggedIn }: TreeAnimationProps) => {
               ry={25 + actualProgress * 18}
               fill={`rgba(255, 200, 50, ${0.06 + actualProgress * 0.1})`}
               animate={{
-                rx: [20 + actualProgress * 15, 25 + actualProgress * 18, 20 + actualProgress * 15],
-                ry: [25 + actualProgress * 18, 30 + actualProgress * 22, 25 + actualProgress * 18],
+                scaleX: [1, 1.25, 1],
+                scaleY: [1, 1.2, 1],
                 opacity: [0.3, 0.6, 0.3]
               }}
               transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
-              style={{ filter: 'blur(12px)' }}
+              style={{ filter: 'blur(12px)', transformOrigin: '200px 120px' }}
             />
 
             {/* Lamp body */}
@@ -305,15 +306,12 @@ export const TreeAnimation = ({ progress, isLoggedIn }: TreeAnimationProps) => {
               d="M 197,142 Q 200,125 203,142 Q 200,138 197,142 Z"
               fill="#ffd700"
               animate={{
-                d: [
-                  "M 197,142 Q 200,125 203,142 Q 200,138 197,142 Z",
-                  "M 196,142 Q 200,120 204,142 Q 200,136 196,142 Z",
-                  "M 197,142 Q 200,125 203,142 Q 200,138 197,142 Z"
-                ],
+                scaleY: [1, 1.15, 1],
+                scaleX: [1, 0.9, 1],
                 opacity: [0.8, 1, 0.8]
               }}
               transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
-              style={{ filter: 'drop-shadow(0 0 6px #ffd700)' }}
+              style={{ filter: 'drop-shadow(0 0 6px #ffd700)', transformOrigin: '200px 142px' }}
             />
 
             {/* Lamp base */}

@@ -22,13 +22,8 @@ const UserSchema = new mongoose.Schema({
     enum: ['admin', 'student', 'alumni'],
     required: true
   },
-  isVerified: {
-    type: Boolean,
-    default: function() {
-      // By default, alumni need admin verification. Admin and students are verified immediately.
-      return this.role !== 'alumni';
-    }
-  },
+
+
   profile: {
     avatar: {
       type: String,

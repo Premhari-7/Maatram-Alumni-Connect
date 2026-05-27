@@ -13,7 +13,6 @@ const EventSchema = new mongoose.Schema({
   },
   type: {
     type: String,
-    enum: ['meet', 'workshop', 'webinar', 'foundation'],
     required: true
   },
   date: {

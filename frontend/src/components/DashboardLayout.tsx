@@ -4,7 +4,7 @@ import { useAuth, API_URL, DEFAULT_AVATAR } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
 import { Sidebar } from './Sidebar';
 import { AIChatbot } from './AIChatbot';
-import { FiLoader, FiLock, FiLogOut, FiBell, FiTrash2, FiX, FiCheckSquare, FiUser, FiHeart, FiMessageCircle, FiShare2, FiUserPlus, FiUserCheck } from 'react-icons/fi';
+import { FiLoader, FiLock, FiLogOut, FiBell, FiTrash2, FiX, FiCheckSquare, FiUser, FiHeart, FiMessageCircle, FiShare2, FiUserPlus, FiUserCheck, FiThumbsUp, FiAward, FiStar, FiSun, FiSmile } from 'react-icons/fi';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
 import { UserProfilePopup } from './UserProfilePopup';
@@ -12,8 +12,14 @@ import { UserProfilePopup } from './UserProfilePopup';
 // Notification type icon helper
 const getNotifIcon = (type: string) => {
   switch (type) {
-    case 'like': return <FiHeart size={14} style={{ color: '#ff6b6b' }} />;
-    case 'comment': case 'reply': return <FiMessageCircle size={14} style={{ color: '#4ecdc4' }} />;
+    case 'like': return <FiThumbsUp size={14} style={{ color: '#3b82f6' }} />;
+    case 'love': return <FiHeart size={14} style={{ color: '#ef4444' }} />;
+    case 'celebrate': return <FiAward size={14} style={{ color: '#22c55e' }} />;
+    case 'support': return <FiStar size={14} style={{ color: '#a855f7' }} />;
+    case 'insightful': return <FiSun size={14} style={{ color: '#eab308' }} />;
+    case 'funny': return <FiSmile size={14} style={{ color: '#f97316' }} />;
+    case 'comment': case 'reply': case 'comment_reply': return <FiMessageCircle size={14} style={{ color: '#4ecdc4' }} />;
+    case 'comment_like': return <FiThumbsUp size={14} style={{ color: '#3b82f6' }} />;
     case 'share': return <FiShare2 size={14} style={{ color: '#a78bfa' }} />;
     case 'connection_request': return <FiUserPlus size={14} style={{ color: '#ffd700' }} />;
     case 'connection_accepted': case 'connection': return <FiUserCheck size={14} style={{ color: '#22c55e' }} />;
@@ -23,7 +29,8 @@ const getNotifIcon = (type: string) => {
 };
 
 export const DashboardLayout = () => {
-  const { user, loading, logout, token, isMockMode, refreshUser } = useAuth();
+  const { user, loading, logout, token, refreshUser } = useAuth();
+  const isMockMode = false;
   const navigate = useNavigate();
 
   // Notification states from SocketContext
@@ -83,84 +90,7 @@ export const DashboardLayout = () => {
     return <Navigate to="/login" replace />;
   }
 
-  // Block Alumni or Scholars if they are not verified
-  if ((user.role === 'alumni' || user.role === 'student') && !user.isVerified) {
-    return (
-      <div style={{
-        width: '100vw',
-        height: '100vh',
-        background: '#050505',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '20px',
-        fontFamily: 'var(--font-body)'
-      }}>
-        <div 
-          className="glass-panel"
-          style={{
-            maxWidth: '500px',
-            width: '100%',
-            padding: '40px 30px',
-            textAlign: 'center',
-            border: '1px solid var(--color-yellow-primary)',
-            boxShadow: '0 10px 40px rgba(255, 215, 0, 0.15)'
-          }}
-        >
-          <div style={{
-            background: 'rgba(255, 215, 0, 0.1)',
-            width: '64px',
-            height: '64px',
-            borderRadius: '50%',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: 'var(--color-yellow-primary)',
-            margin: '0 auto 20px auto'
-          }}>
-            <FiLock size={32} />
-          </div>
-          
-          <h2 style={{ fontSize: '22px', fontWeight: 800, fontFamily: 'var(--font-title)', marginBottom: '12px' }}>
-            Account Pending Verification
-          </h2>
-          
-          <p style={{ fontSize: '14px', color: 'var(--color-text-gray)', lineHeight: '1.7', marginBottom: '30px' }}>
-            Thank you for registering as a {user.role === 'alumni' ? 'Alumni' : 'Scholar'}, {user.name}! To maintain the integrity of our scholar community, an administrator must verify your batch and registration details before you can access the platform.
-          </p>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
-              If you believe this is an error, contact office@maatramfoundation.org
-            </span>
-            
-            <button 
-              onClick={logout} 
-              className="btn-primary" 
-              style={{
-                width: '100%',
-                justifyContent: 'center',
-                background: 'transparent',
-                border: '1px solid var(--color-yellow-primary)',
-                color: 'var(--color-yellow-primary)',
-                boxShadow: 'none'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = 'var(--color-yellow-primary)';
-                e.currentTarget.style.color = '#000000';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'transparent';
-                e.currentTarget.style.color = 'var(--color-yellow-primary)';
-              }}
-            >
-              <FiLogOut /> Return to Home
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   // Handle delete notification
   const handleDeleteNotification = async (id: string, e: React.MouseEvent) => {
@@ -269,39 +199,15 @@ export const DashboardLayout = () => {
   };
 
   return (
-    <div style={{
-      minHeight: '100vh',
-      background: '#050505',
-      display: 'flex',
-      gap: '24px',
-      padding: '20px 5% 20px 20px',
-      position: 'relative'
-    }}>
+    <div className="dashboard-layout">
       {/* Sidebar navigation */}
       <Sidebar />
 
       {/* Right Column: Main Content + Header + Cinematic Footer */}
-      <div style={{
-        flex: 1,
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '24px',
-        minWidth: 0
-      }}>
+      <div className="main-content">
         
         {/* Top Header Bar */}
-        <header style={{
-          display: 'flex',
-          justifyContent: 'flex-end',
-          alignItems: 'center',
-          padding: '12px 24px',
-          background: 'rgba(10, 10, 10, 0.6)',
-          backdropFilter: 'blur(12px)',
-          border: '1px solid rgba(255, 255, 255, 0.03)',
-          borderRadius: '16px',
-          position: 'relative',
-          zIndex: 100
-        }}>
+        <header className="top-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
             <span style={{ fontSize: '13px', color: 'var(--color-text-gray)', fontWeight: 500 }}>
               Welcome back, <span style={{ color: '#ffffff', fontWeight: 700 }}>{user.name}</span>
@@ -372,8 +278,8 @@ export const DashboardLayout = () => {
                       position: 'absolute',
                       right: 0,
                       top: '48px',
-                      width: '360px',
-                      maxHeight: '460px',
+                      width: '300px',
+                      maxHeight: '340px',
                       background: 'rgba(10, 10, 10, 0.96)',
                       backdropFilter: 'blur(14px)',
                       border: '1px solid rgba(255, 215, 0, 0.18)',
@@ -640,7 +546,9 @@ export const DashboardLayout = () => {
       </div>
 
       {/* Floating AI Assistant Chatbot */}
-      <AIChatbot />
+      <div className="chatbot-mobile-wrapper">
+        <AIChatbot />
+      </div>
 
       {/* Connection sender profile popup preview */}
       {selectedPreviewUserId && (
@@ -650,7 +558,7 @@ export const DashboardLayout = () => {
         />
       )}
 
-      {/* Shake Keyframe styles */}
+      {/* Shake Keyframe styles and Mobile adjustments */}
       <style>{`
         @keyframes bell-shake {
           0% { transform: rotate(0); }
@@ -661,6 +569,12 @@ export const DashboardLayout = () => {
           75% { transform: rotate(2deg); }
           85% { transform: rotate(-2deg); }
           100% { transform: rotate(0); }
+        }
+        @media (max-width: 768px) {
+          .chatbot-mobile-wrapper > div {
+            bottom: 85px !important;
+            right: 20px !important;
+          }
         }
       `}</style>
     </div>

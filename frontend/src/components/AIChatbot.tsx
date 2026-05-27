@@ -11,12 +11,13 @@ interface Message {
 }
 
 export const AIChatbot = () => {
-  const { user, token, isMockMode } = useAuth();
+  const { user, token } = useAuth();
+  const isMockMode = false;
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
     {
       sender: 'bot',
-      text: 'Hello! I am your Maatram Alumni Connect assistant. How can I help you today? Ask me about navigation, career guidance, or how the foundation works.',
+      text: 'Hello, I’m Maatram Jarvis! How can I assist you with the Maatram Foundation or this platform today?',
       timestamp: new Date()
     }
   ]);
@@ -68,7 +69,7 @@ export const AIChatbot = () => {
         } else if (lower.includes('admin') || lower.includes('verify') || lower.includes('status')) {
           reply = "Alumni signups require verification by administrators to maintain community integrity. Once verified, you will gain full access to alumni networking and posting. Admins can manage all verification requests, edit events, and moderate content from their dedicated Admin Panel.";
         } else {
-          reply = "Thank you for reaching out. As an AI assistant built for Maatram Alumni Connect, I can guide you through using the platform. You can check the 'Feed' to see updates, 'Connections' to find alumni, 'Events' to register for webinars, and 'Messages' to chat in real-time. What would you like to explore?";
+          reply = "Thank you for reaching out. I am Maatram Jarvis. I can guide you through using the platform or answer questions about the Maatram Foundation. You can check the 'Feed' to see updates, 'Connections' to find alumni, 'Events' to register for webinars, and 'Messages' to chat in real-time. What would you like to explore?";
         }
 
         // Clean out emojis if any sneaked in
@@ -140,8 +141,10 @@ export const AIChatbot = () => {
               position: 'absolute',
               bottom: '72px',
               right: 0,
-              width: '320px',
+              width: 'calc(100vw - 50px)',
+              maxWidth: '320px',
               height: '420px',
+              maxHeight: 'calc(100vh - 120px)',
               display: 'flex',
               flexDirection: 'column',
               overflow: 'hidden',
@@ -173,7 +176,7 @@ export const AIChatbot = () => {
                 </div>
                 <div>
                   <h4 style={{ fontSize: '14px', fontWeight: 700, margin: 0, color: '#ffffff' }}>
-                    Maatram Assistant
+                    Maatram Jarvis
                   </h4>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginTop: '2px' }}>
                     <span style={{

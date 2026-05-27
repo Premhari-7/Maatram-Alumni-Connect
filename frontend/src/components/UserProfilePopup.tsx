@@ -15,7 +15,8 @@ interface UserProfilePopupProps {
 type ConnectionStatus = 'connected' | 'pending_sent' | 'pending_received' | 'none';
 
 export const UserProfilePopup = ({ userId, onClose }: UserProfilePopupProps) => {
-  const { user, token, isMockMode, toggleConnect, refreshUser } = useAuth();
+  const { user, token, toggleConnect, refreshUser } = useAuth();
+  const isMockMode = false;
   const { showNotification } = useNotification();
   const { fetchNotifications } = useSocket();
   const navigate = useNavigate();
@@ -91,7 +92,7 @@ export const UserProfilePopup = ({ userId, onClose }: UserProfilePopupProps) => 
     };
 
     fetchUserData();
-  }, [userId, isMockMode, token]);
+  }, [userId, token]);
 
   if (!userId) return null;
 

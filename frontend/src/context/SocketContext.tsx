@@ -77,7 +77,8 @@ export const useSocket = () => {
 const SOCKET_URL = API_URL.replace('/api', '');
 
 export const SocketProvider = ({ children }: { children: ReactNode }) => {
-  const { user, token, isMockMode } = useAuth();
+  const { user, token } = useAuth();
+  const isMockMode = false;
   const [socket, setSocket] = useState<Socket | null>(null);
   const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
   const [typingUsers, setTypingUsers] = useState<{ [userId: string]: boolean }>({});
@@ -176,7 +177,7 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
         console.error('Error fetching notifications:', err);
       }
     }
-  }, [user, token, isMockMode]);
+  }, [user, token]);
 
   // Mark single notification as read
   const markNotifRead = useCallback(async (id: string) => {
@@ -196,7 +197,7 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
         console.error('Error marking notification as read:', err);
       }
     }
-  }, [token, isMockMode]);
+  }, [token]);
 
   // Mark all notifications as read
   const markAllNotifsRead = useCallback(async () => {
@@ -216,7 +217,7 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
         console.error('Error marking all notifications as read:', err);
       }
     }
-  }, [token, isMockMode]);
+  }, [token]);
 
   // Delete single notification
   const deleteNotification = useCallback(async (id: string) => {
@@ -236,7 +237,7 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
         console.error('Error deleting notification:', err);
       }
     }
-  }, [token, isMockMode]);
+  }, [token]);
 
   // Clear all notifications
   const clearAllNotifications = useCallback(async () => {
@@ -253,7 +254,7 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
         console.error('Error clearing notifications:', err);
       }
     }
-  }, [token, isMockMode]);
+  }, [token]);
 
   // Initialize socket connection
   useEffect(() => {
@@ -270,7 +271,7 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
 
     // Identify self on connect and automatic reconnect
     newSocket.on('connect', () => {
-      console.log('Socket connected:', newSocket.id);
+      // Intentionally suppressing console log for production
       newSocket.emit('identify', user.id);
     });
 
@@ -343,7 +344,7 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
     return () => {
       newSocket.disconnect();
     };
-  }, [token, user, isMockMode]);
+  }, [token, user?.id || (user as any)?._id]);
 
   // Load chat conversations list
   const refreshConversations = async () => {
@@ -674,7 +675,7 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
       setOnlineUsers(new Set());
       setNotifications([]);
     }
-  }, [user, isMockMode]);
+  }, [user]);
 
   // Periodically refresh notifications
   useEffect(() => {

@@ -91,77 +91,55 @@ router.post('/request', authMiddleware, async (req, res) => {
       return res.status(400).json({ message: 'A connection request is already pending' });
     }
 
-    // If target user is private → create pending request
-    if (targetUser.isPrivate) {
-      const newRequest = new ConnectionRequest({
-        sender: currentUserId,
-        receiver: targetUserId,
-        status: 'pending'
-      });
-      await newRequest.save();
+    // If target user is public, connect immediately
+    if (!targetUser.isPrivate) {
+      currentUser.connections.push(targetUserId);
+      targetUser.connections.push(currentUserId);
+      await currentUser.save();
+      await targetUser.save();
 
-      // Create notification for receiver
       const notif = new Notification({
         recipient: targetUserId,
         sender: currentUserId,
-        type: 'connection_request',
+        type: 'connection',
         relatedUser: currentUserId,
-        relatedConnectionRequest: newRequest._id,
-        text: `${currentUser.name} wants to connect with you`
+        text: `${currentUser.name} connected with you`
       });
       await notif.save();
-
-      // Populate for real-time emit
-      const populatedNotif = await Notification.findById(notif._id)
-        .populate('sender', 'name role profile.avatar');
-      emitNotificationToUser(targetUserId, populatedNotif);
+      await notif.populate('sender', 'name role profile.avatar');
+      emitNotificationToUser(targetUserId, notif);
 
       return res.json({
-        status: 'pending',
-        message: 'Connection request sent. Waiting for approval.',
-        requestId: newRequest._id
+        status: 'connected',
+        message: 'You are now connected!'
       });
     }
 
-    // If target user is public → instant connect (existing behavior)
-    currentUser.connections.push(targetUserId);
-    targetUser.connections.push(currentUserId);
-    await currentUser.save();
-    await targetUser.save();
-
-    // Delete any old rejected requests between them
-    await ConnectionRequest.deleteMany({
-      $or: [
-        { sender: currentUserId, receiver: targetUserId },
-        { sender: targetUserId, receiver: currentUserId }
-      ]
-    });
-
-    // Create an accepted connection request record for tracking
-    const acceptedRequest = new ConnectionRequest({
+    // Create a pending request for private accounts
+    const newRequest = new ConnectionRequest({
       sender: currentUserId,
       receiver: targetUserId,
-      status: 'accepted'
+      status: 'pending'
     });
-    await acceptedRequest.save();
+    await newRequest.save();
 
-    // Create notification for the target
+    // Create notification for receiver
     const notif = new Notification({
       recipient: targetUserId,
       sender: currentUserId,
-      type: 'connection',
+      type: 'connection_request',
       relatedUser: currentUserId,
-      text: `${currentUser.name} is now connected with you.`
+      relatedConnectionRequest: newRequest._id,
+      text: `${currentUser.name} wants to connect with you`
     });
     await notif.save();
-    const populatedNotif = await Notification.findById(notif._id)
-      .populate('sender', 'name role profile.avatar');
-    emitNotificationToUser(targetUserId, populatedNotif);
+    await notif.populate('sender', 'name role profile.avatar');
+    emitNotificationToUser(targetUserId, notif);
 
     return res.json({
-      status: 'connected',
-      message: 'Connected successfully!',
-      connectionsCount: currentUser.connections.length
+      status: 'pending',
+      message: 'Connection request sent. Waiting for approval.',
+      requestId: newRequest._id
     });
   } catch (error) {
     console.error('Connection request error:', error);
@@ -185,7 +163,9 @@ router.post('/accept/:requestId', authMiddleware, async (req, res) => {
     }
 
     if (request.status !== 'pending') {
-      return res.status(400).json({ message: 'This request has already been processed' });
+      // It's already processed. Delete the notification to clean up.
+      await Notification.deleteOne({ recipient: req.user.id, relatedConnectionRequest: request._id });
+      return res.json({ status: 'already_processed', message: 'This request has already been processed' });
     }
 
     // Update request status
@@ -218,24 +198,17 @@ router.post('/accept/:requestId', authMiddleware, async (req, res) => {
       .populate('sender', 'name role profile.avatar');
     emitNotificationToUser(request.sender, populatedNotif);
 
-    // Update the notification received by the receiver
+    // Delete the notification received by the receiver
     try {
       const existingNotif = await Notification.findOne({
         recipient: req.user.id,
         relatedConnectionRequest: request._id
       });
       if (existingNotif) {
-        existingNotif.type = 'connection_accepted';
-        existingNotif.text = 'is now connected with you.';
-        existingNotif.relatedConnectionRequest = undefined;
-        await existingNotif.save();
-        
-        const populatedSelfNotif = await Notification.findById(existingNotif._id)
-          .populate('sender', 'name role profile.avatar');
-        emitNotificationToUser(req.user.id, populatedSelfNotif);
+        await existingNotif.deleteOne();
       }
     } catch (err) {
-      console.error('Error updating self notification on accept:', err);
+      console.error('Error deleting self notification on accept:', err);
     }
 
     res.json({
@@ -261,30 +234,25 @@ router.post('/reject/:requestId', authMiddleware, async (req, res) => {
     }
 
     if (request.status !== 'pending') {
-      return res.status(400).json({ message: 'This request has already been processed' });
+      // It's already processed. Delete the notification to clean up.
+      await Notification.deleteOne({ recipient: req.user.id, relatedConnectionRequest: request._id });
+      return res.json({ status: 'already_processed', message: 'This request has already been processed' });
     }
 
     request.status = 'rejected';
     await request.save();
 
-    // Update the notification received by the receiver
+    // Delete the notification received by the receiver
     try {
       const existingNotif = await Notification.findOne({
         recipient: req.user.id,
         relatedConnectionRequest: request._id
       });
       if (existingNotif) {
-        existingNotif.type = 'connection_rejected';
-        existingNotif.text = 'connection request declined.';
-        existingNotif.relatedConnectionRequest = undefined;
-        await existingNotif.save();
-        
-        const populatedSelfNotif = await Notification.findById(existingNotif._id)
-          .populate('sender', 'name role profile.avatar');
-        emitNotificationToUser(req.user.id, populatedSelfNotif);
+        await existingNotif.deleteOne();
       }
     } catch (err) {
-      console.error('Error updating self notification on reject:', err);
+      console.error('Error deleting self notification on reject:', err);
     }
 
     res.json({

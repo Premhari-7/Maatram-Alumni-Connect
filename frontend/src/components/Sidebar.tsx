@@ -5,6 +5,7 @@ import { FloatingCapLogo } from './FloatingCapLogo';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   FiGrid, 
+  FiHome,
   FiFileText, 
   FiUsers, 
   FiMessageSquare, 
@@ -28,7 +29,7 @@ export const Sidebar = () => {
   };
 
   const navItems = [
-    { name: 'Dashboard', path: '/dashboard', icon: <FiGrid size={18} />, end: true },
+    { name: 'Home', path: '/dashboard', icon: <FiHome size={18} />, end: true },
     { name: 'Connections', path: '/dashboard/connections', icon: <FiUsers size={18} /> },
     { name: 'Messages', path: '/dashboard/chat', icon: <FiMessageSquare size={18} /> },
     { name: 'Events', path: '/dashboard/events', icon: <FiCalendar size={18} /> },
@@ -47,23 +48,9 @@ export const Sidebar = () => {
 
   return (
     <>
-      <div 
-        className="glass-panel"
-        style={{
-          width: '260px',
-          height: 'calc(100vh - 40px)',
-          position: 'sticky',
-          top: '20px',
-          display: 'flex',
-          flexDirection: 'column',
-          padding: '24px 16px',
-          zIndex: 100,
-          gap: '28px',
-          borderColor: 'rgba(255, 215, 0, 0.1)'
-        }}
-      >
+      <div className="glass-panel sidebar-container">
         {/* Brand logo header */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', paddingLeft: '8px' }}>
+        <div className="sidebar-header">
           <FloatingCapLogo size={38} />
           <div>
             <h2 style={{ fontSize: '15px', fontWeight: 800, color: '#ffffff', letterSpacing: '1px', margin: 0, fontFamily: 'var(--font-title)' }}>
@@ -76,7 +63,7 @@ export const Sidebar = () => {
         </div>
 
         {/* Nav links */}
-        <nav style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+        <nav className="sidebar-nav">
           {navItems.map((item) => (
             <NavLink
               key={item.name}
@@ -120,16 +107,16 @@ export const Sidebar = () => {
               <span>{item.name}</span>
             </NavLink>
           ))}
+          
+          {/* Mobile Logout Button (Hidden on Desktop, shown on Mobile) */}
+          <button className="mobile-logout-btn" onClick={handleLogoutClick}>
+            <FiLogOut size={18} />
+            <span>Logout</span>
+          </button>
         </nav>
 
         {/* User tag & Logout */}
-        <div style={{
-          borderTop: '1px solid var(--color-border-glass)',
-          paddingTop: '20px',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '14px'
-        }}>
+        <div className="sidebar-footer">
           {/* User tag info */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', paddingLeft: '8px' }}>
             <img

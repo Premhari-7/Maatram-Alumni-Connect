@@ -3,7 +3,7 @@ import Post from '../models/Post.js';
 import User from '../models/User.js';
 import Notification from '../models/Notification.js';
 import { authMiddleware } from '../middleware/auth.js';
-import { uploadToCloudinary } from '../middleware/cloudinary.js';
+import { uploadPostMedia } from '../config/cloudinary.js';
 
 const router = express.Router();
 
@@ -42,27 +42,27 @@ router.get('/:id', authMiddleware, async (req, res) => {
 });
 
 // Create new post
-router.post('/', authMiddleware, async (req, res) => {
+router.post('/', authMiddleware, uploadPostMedia.single('mediaFile'), async (req, res) => {
   console.log('--- POST /api/posts requested ---');
   console.log('User:', req.user);
   console.log('Payload caption:', req.body?.caption);
-  console.log('Payload image length/presence:', req.body?.image ? req.body.image.substring(0, 100) + '...' : 'none');
+  console.log('File attached:', req.file ? 'Yes' : 'No');
 
   try {
-    const { caption, image } = req.body;
+    const { caption } = req.body;
     if (!caption) {
       console.log('Validation failed: Caption is missing or empty');
       return res.status(400).json({ message: 'Caption is required' });
     }
 
     let mediaUrl = '';
-    if (image) {
-      if (image.startsWith('data:image/') || image.startsWith('data:video/')) {
-        console.log('Uploading base64 image/video to Cloudinary...');
-        mediaUrl = await uploadToCloudinary(image, 'posts');
-      } else {
-        mediaUrl = image;
-      }
+    // If multer uploaded successfully, secure_url or path will be available
+    if (req.file) {
+      mediaUrl = req.file.path || req.file.secure_url;
+      console.log('Cloudinary media URL:', mediaUrl);
+    } else if (req.body.image) {
+      // Fallback for mock mode or existing clients sending raw string URLs
+      mediaUrl = req.body.image;
     }
 
     const newPost = new Post({
@@ -90,15 +90,15 @@ router.post('/', authMiddleware, async (req, res) => {
 });
 
 // Edit existing post
-router.put('/:id', authMiddleware, async (req, res) => {
+router.put('/:id', authMiddleware, uploadPostMedia.single('mediaFile'), async (req, res) => {
   console.log('--- PUT /api/posts/:id requested ---');
   console.log('ID:', req.params.id);
   console.log('User:', req.user);
   console.log('Payload caption:', req.body?.caption);
-  console.log('Payload image length/presence:', req.body?.image ? 'present' : 'none');
+  console.log('File attached:', req.file ? 'Yes' : 'No');
 
   try {
-    const { caption, image } = req.body;
+    const { caption } = req.body;
     const post = await Post.findById(req.params.id);
 
     if (!post) {
@@ -111,7 +111,13 @@ router.put('/:id', authMiddleware, async (req, res) => {
     }
 
     if (caption) post.caption = caption;
-    if (image !== undefined) post.image = image;
+    
+    // Update image if a new file is uploaded
+    if (req.file) {
+      post.image = req.file.path || req.file.secure_url;
+    } else if (req.body.image !== undefined) {
+      post.image = req.body.image;
+    }
 
     await post.save();
     console.log('Post updated successfully inside DB!');
@@ -174,6 +180,20 @@ router.post('/like/:id', authMiddleware, async (req, res) => {
       if (reactIdx > -1) {
         post.reactions.splice(reactIdx, 1);
       }
+      
+      // Delete notification on unlike
+      if (post.author.toString() !== req.user.id) {
+        try {
+          await Notification.deleteMany({
+            recipient: post.author,
+            sender: req.user.id,
+            relatedPost: post._id,
+            type: { $in: ['like', 'celebrate', 'support', 'love', 'insightful', 'funny'] }
+          });
+        } catch (err) {
+          console.error('Notification deletion failed on unlike:', err);
+        }
+      }
     } else {
       // Like
       post.likes.push(req.user.id);
@@ -186,6 +206,12 @@ router.post('/like/:id', authMiddleware, async (req, res) => {
       // Trigger notification if not liking own post
       if (post.author.toString() !== req.user.id) {
         try {
+          await Notification.deleteMany({
+            recipient: post.author,
+            sender: req.user.id,
+            relatedPost: post._id,
+            type: { $in: ['like', 'celebrate', 'support', 'love', 'insightful', 'funny'] }
+          });
           const likingUser = await User.findById(req.user.id);
           const notif = new Notification({
             recipient: post.author,
@@ -219,9 +245,9 @@ router.post('/like/:id', authMiddleware, async (req, res) => {
 // Toggle Reaction
 router.post('/react/:id', authMiddleware, async (req, res) => {
   try {
-    const { type } = req.body; // 'like', 'funny', 'celebrate'
-    if (!type || !['like', 'funny', 'celebrate'].includes(type)) {
-      return res.status(400).json({ message: 'Reaction type must be like, funny, or celebrate' });
+    const { type } = req.body; 
+    if (!type || !['like', 'celebrate', 'support', 'love', 'insightful', 'funny'].includes(type)) {
+      return res.status(400).json({ message: 'Invalid reaction type' });
     }
 
     const post = await Post.findById(req.params.id);
@@ -250,6 +276,29 @@ router.post('/react/:id', authMiddleware, async (req, res) => {
         if (likeIdx === -1) {
           post.likes.push(req.user.id);
         }
+
+        // Trigger notification update for reaction change
+        if (post.author.toString() !== req.user.id) {
+          try {
+            await Notification.deleteMany({
+              recipient: post.author,
+              sender: req.user.id,
+              relatedPost: post._id,
+              type: { $in: ['like', 'celebrate', 'support', 'love', 'insightful', 'funny'] }
+            });
+            const reactingUser = await User.findById(req.user.id);
+            const notif = new Notification({
+              recipient: post.author,
+              sender: req.user.id,
+              type: type,
+              relatedPost: post._id,
+              text: `${reactingUser.name} reacted to your post`
+            });
+            await notif.save();
+          } catch (nErr) {
+            console.error('Notification creation failed for reaction change:', nErr);
+          }
+        }
       }
     } else {
       // New reaction
@@ -261,11 +310,17 @@ router.post('/react/:id', authMiddleware, async (req, res) => {
       // Trigger notification if not reacting to own post
       if (post.author.toString() !== req.user.id) {
         try {
+          await Notification.deleteMany({
+            recipient: post.author,
+            sender: req.user.id,
+            relatedPost: post._id,
+            type: { $in: ['like', 'celebrate', 'support', 'love', 'insightful', 'funny'] }
+          });
           const reactingUser = await User.findById(req.user.id);
           const notif = new Notification({
             recipient: post.author,
             sender: req.user.id,
-            type: 'like',
+            type: type,
             relatedPost: post._id,
             text: `${reactingUser.name} reacted to your post`
           });
@@ -533,9 +588,46 @@ router.post('/comment/:postId/:commentId/like', authMiddleware, async (req, res)
     if (likeIdx > -1) {
       // Unlike
       comment.likes.splice(likeIdx, 1);
+      
+      // Delete notification on unlike comment
+      if (comment.user.toString() !== req.user.id) {
+        try {
+          await Notification.deleteMany({
+            recipient: comment.user,
+            sender: req.user.id,
+            relatedPost: post._id,
+            type: 'comment_like'
+          });
+        } catch (err) {
+          console.error('Notification deletion failed on comment unlike:', err);
+        }
+      }
     } else {
       // Like
       comment.likes.push(req.user.id);
+      
+      // Trigger notification if not liking own comment
+      if (comment.user.toString() !== req.user.id) {
+        try {
+          await Notification.deleteMany({
+            recipient: comment.user,
+            sender: req.user.id,
+            relatedPost: post._id,
+            type: 'comment_like'
+          });
+          const likingUser = await User.findById(req.user.id);
+          const notif = new Notification({
+            recipient: comment.user,
+            sender: req.user.id,
+            type: 'comment_like',
+            relatedPost: post._id,
+            text: `${likingUser.name} liked your comment`
+          });
+          await notif.save();
+        } catch (nErr) {
+          console.error('Notification creation failed for comment like:', nErr);
+        }
+      }
     }
 
     await post.save();
@@ -582,21 +674,21 @@ router.post('/comment/:postId/:commentId/reply', authMiddleware, async (req, res
     });
 
     await post.save();
-
+    
     // Trigger notification if not replying to own comment
     if (comment.user.toString() !== req.user.id) {
       try {
-        const replyUser = await User.findById(req.user.id);
+        const replyingUser = await User.findById(req.user.id);
         const notif = new Notification({
           recipient: comment.user,
           sender: req.user.id,
           type: 'reply',
           relatedPost: post._id,
-          text: `${replyUser.name} replied to your comment`
+          text: `${replyingUser.name} replied to your comment`
         });
         await notif.save();
       } catch (nErr) {
-        console.error('Notification creation failed for reply:', nErr);
+        console.error('Notification creation failed for comment reply:', nErr);
       }
     }
 

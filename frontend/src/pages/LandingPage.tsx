@@ -52,9 +52,9 @@ const Scroll3DSection = ({ children, id, style }: Scroll3DSectionProps) => {
   });
 
   // Gentle, smooth 3D perspective scroll — barely noticeable but premium feel
+  // Y translation removed because it interferes with anchor scroll offsets
   const rotateX = useTransform(scrollYProgress, [0, 0.3, 0.7, 1], [2, 0, 0, -2]);
   const scale = useTransform(scrollYProgress, [0, 0.25, 0.75, 1], [0.99, 1, 1, 0.99]);
-  const y = useTransform(scrollYProgress, [0, 0.3, 0.7, 1], [20, 0, 0, -20]);
 
   return (
     <div
@@ -71,7 +71,6 @@ const Scroll3DSection = ({ children, id, style }: Scroll3DSectionProps) => {
         style={{
           rotateX,
           scale,
-          y,
           width: '100%',
           height: '100%',
           display: 'flex',
@@ -153,7 +152,7 @@ export const LandingPage = () => {
         borderBottom: '1px solid rgba(255, 215, 0, 0.08)',
         padding: '16px 5%'
       }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', maxWidth: '1200px', margin: '0 auto' }}>
+        <div className="landing-header-inner" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', maxWidth: '1200px', margin: '0 auto' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <FloatingCapLogo size={36} />
             <div>
@@ -162,7 +161,7 @@ export const LandingPage = () => {
             </div>
           </div>
           
-          <nav style={{ display: 'flex', gap: '30px', alignItems: 'center' }}>
+          <nav className="landing-nav" style={{ display: 'flex', gap: '30px', alignItems: 'center' }}>
             <a href="#about" onClick={(e) => handleScroll(e, 'about')} style={{ color: 'var(--color-text-gray)', textDecoration: 'none', fontSize: '14px', fontWeight: 500 }}>About</a>
             <a href="#community" onClick={(e) => handleScroll(e, 'community')} style={{ color: 'var(--color-text-gray)', textDecoration: 'none', fontSize: '14px', fontWeight: 500 }}>Community</a>
             <button className="btn-primary" onClick={handleJoinClick} style={{ padding: '8px 18px', fontSize: '13px' }}>
@@ -509,6 +508,19 @@ export const LandingPage = () => {
         }
 
         @media (max-width: 768px) {
+          .landing-header-inner {
+            flex-direction: column;
+            gap: 12px;
+          }
+          .landing-nav {
+            gap: 15px !important;
+            flex-wrap: wrap;
+            justify-content: center;
+            width: 100%;
+          }
+          section {
+            padding: 50px 5% !important;
+          }
           .features-subgrid {
             grid-template-columns: 1fr 1fr !important;
           }

@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAuth, API_URL, Experience, DEFAULT_AVATAR } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
-import { FiMail, FiMapPin, FiBriefcase, FiUsers, FiAward, FiEdit3, FiMessageSquare, FiHeart, FiSend, FiBookmark, FiTrash2, FiShare2, FiPlus, FiX, FiLock, FiUserCheck, FiUserPlus, FiUser, FiBookOpen, FiThumbsUp, FiSmile, FiRepeat, FiCopy, FiLinkedin, FiTwitter } from 'react-icons/fi';
+import { FiMail, FiMapPin, FiBriefcase, FiUsers, FiAward, FiEdit3, FiMessageSquare, FiHeart, FiSend, FiBookmark, FiTrash2, FiShare2, FiPlus, FiX, FiLock, FiUserCheck, FiUserPlus, FiUser, FiBookOpen, FiThumbsUp, FiSmile, FiRepeat, FiCopy, FiLinkedin, FiTwitter, FiSun, FiStar } from 'react-icons/fi';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
 import { UserProfilePopup } from '../components/UserProfilePopup';
@@ -73,7 +73,7 @@ interface Reaction {
       avatar: string;
     };
   } | string;
-  type: 'like' | 'funny' | 'celebrate';
+  type: string;
 }
 
 interface Post {
@@ -97,10 +97,20 @@ interface Post {
   createdAt: string;
 }
 
+const reactionConfig: Record<string, { icon: any, color: string, label: string }> = {
+  like: { icon: FiThumbsUp, color: '#3b82f6', label: 'Like' },
+  celebrate: { icon: FiAward, color: '#22c55e', label: 'Celebrate' },
+  support: { icon: FiStar, color: '#a855f7', label: 'Support' },
+  love: { icon: FiHeart, color: '#ef4444', label: 'Love' },
+  insightful: { icon: FiSun, color: '#eab308', label: 'Insightful' },
+  funny: { icon: FiSmile, color: '#f97316', label: 'Funny' },
+};
+
 export const Profile = () => {
   const useParamsData = useParams<{ id: string }>();
   const id = useParamsData.id;
-  const { user, token, isMockMode, toggleConnect, refreshUser } = useAuth();
+  const { user, token, toggleConnect, refreshUser } = useAuth();
+  const isMockMode = false;
   const { showNotification } = useNotification();
   const navigate = useNavigate();
 
@@ -161,115 +171,8 @@ export const Profile = () => {
   };
 
   const [hoveredPostId, setHoveredPostId] = useState<string | null>(null);
-
-  const getUserReaction = (post: Post) => {
-    if (!user) return null;
-    const currentUserId = user.id || (user as any)._id;
-    const found = post.reactions?.find(r => {
-      const rUserId = typeof r.user === 'object' && r.user !== null ? ((r.user as any)._id || (r.user as any).id) : r.user;
-      return rUserId === currentUserId;
-    });
-    if (found) return found.type;
-    
-    // Fallback to checkIsLiked
-    const liked = post.likes?.some(l => {
-      if (typeof l === 'object' && l !== null) {
-        return (l._id || l.id) === currentUserId;
-      }
-      return l === currentUserId;
-    });
-    return liked ? 'like' : null;
-  };
-
-  const renderReactionIcon = (type: string | null) => {
-    switch (type) {
-      case 'like':
-        return <FiThumbsUp size={18} style={{ display: 'inline-flex', alignItems: 'center' }} />;
-      case 'funny':
-        return <FiSmile size={18} style={{ display: 'inline-flex', alignItems: 'center' }} />;
-      case 'celebrate':
-        return <FiAward size={18} style={{ display: 'inline-flex', alignItems: 'center' }} />;
-      default:
-        return <FiThumbsUp size={18} style={{ display: 'inline-flex', alignItems: 'center' }} />;
-    }
-  };
-
-  const getReactionLabel = (type: string | null) => {
-    switch (type) {
-      case 'like':
-        return 'Like';
-      case 'funny':
-        return 'Funny';
-      case 'celebrate':
-        return 'Celebrate';
-      default:
-        return 'Like';
-    }
-  };
-
-  const formatReactionsSummary = (post: Post) => {
-    const reactionsList = post.reactions || [];
-    
-    const names: string[] = [];
-    reactionsList.forEach(r => {
-      if (typeof r.user === 'object' && r.user !== null && r.user.name) {
-        names.push(r.user.name);
-      }
-    });
-
-    if (names.length === 0 && post.likes && post.likes.length > 0) {
-      post.likes.forEach(l => {
-        if (typeof l === 'object' && l !== null && l.name) {
-          names.push(l.name);
-        }
-      });
-    }
-
-    const totalCount = Math.max(reactionsList.length, post.likes ? post.likes.length : 0);
-
-    if (totalCount === 0) {
-      return '0 Likes';
-    }
-
-    const uniqueNames = Array.from(new Set(names));
-
-    if (totalCount === 1) {
-      const name = uniqueNames[0] || 'Someone';
-      return `${name} reacted`;
-    }
-
-    if (totalCount === 2) {
-      const name1 = uniqueNames[0] || 'Someone';
-      const name2 = uniqueNames[1] || 'Someone else';
-      return `${name1} and ${name2} reacted`;
-    }
-
-    const name1 = uniqueNames[0] || 'Someone';
-    const name2 = uniqueNames[1] || 'Someone else';
-    const othersCount = totalCount - 2;
-    return `${name1}, ${name2} and ${othersCount} ${othersCount === 1 ? 'other' : 'others'} reacted`;
-  };
-
-  const renderReactionsSummaryIcons = (post: Post) => {
-    const reactionsList = post.reactions || [];
-    if (reactionsList.length === 0) {
-      if (post.likes && post.likes.length > 0) {
-        return <FiThumbsUp size={12} style={{ color: 'var(--color-yellow-primary)', marginRight: '6px', verticalAlign: 'middle' }} />;
-      }
-      return null;
-    }
-    const uniqueTypes = Array.from(new Set(reactionsList.map(r => r.type)));
-    return (
-      <span style={{ display: 'inline-flex', gap: '4px', marginRight: '6px', alignItems: 'center', verticalAlign: 'middle' }}>
-        {uniqueTypes.map(t => {
-          if (t === 'like') return <FiThumbsUp key={t} size={12} style={{ color: 'var(--color-yellow-primary)' }} />;
-          if (t === 'funny') return <FiSmile key={t} size={12} style={{ color: 'var(--color-yellow-primary)' }} />;
-          if (t === 'celebrate') return <FiAward key={t} size={12} style={{ color: 'var(--color-yellow-primary)' }} />;
-          return null;
-        })}
-      </span>
-    );
-  };
+  const [hoveredPostIdForReactions, setHoveredPostIdForReactions] = useState<string | null>(null);
+  const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Helper to retrieve detailed likers for popover
   const getLikesUsers = (post: Post) => {
@@ -300,7 +203,7 @@ export const Profile = () => {
     return post.likes.map(id => ({ _id: id, name: 'User', role: '', profile: { avatar: '' } }));
   };
 
-  const handleReact = async (postId: string, type: 'like' | 'funny' | 'celebrate') => {
+  const handleReact = async (postId: string, type: string) => {
     if (!user) return;
     const userId = user.id || (user as any)._id;
     const userName = user.name;
@@ -397,6 +300,7 @@ export const Profile = () => {
   const [mediaFile, setMediaFile] = useState<File | null>(null);
   const [mediaPreview, setMediaPreview] = useState<string>('');
   const [isUploading, setIsUploading] = useState(false);
+  const [isPublishing, setIsPublishing] = useState(false);
   const [showPostConfirm, setShowPostConfirm] = useState(false);
   const [editingPostId, setEditingPostId] = useState<string | null>(null);
 
@@ -451,7 +355,10 @@ export const Profile = () => {
   };
 
   const fetchProfile = async () => {
-    if (!id) return;
+    if (!id) {
+      setLoading(false);
+      return;
+    }
     if (isMockMode) {
       const mockUsersStr = localStorage.getItem('mock_db_users');
       if (mockUsersStr) {
@@ -469,8 +376,9 @@ export const Profile = () => {
           const isOwner = normalizedUser._id === user?.id || normalizedUser.id === user?.id || normalizedUser._id === user?._id || normalizedUser.id === user?._id;
           const isAdmin = user?.role === 'admin';
           const isConnected = normalizedUser.connections.includes(user?.id || '') || normalizedUser.connections.includes(user?._id || '');
+          const targetIsAdmin = found.role === 'admin';
           
-          if (found.isPrivate && !isOwner && !isAdmin && !isConnected) {
+          if (found.isPrivate && !isOwner && !isAdmin && !isConnected && !targetIsAdmin) {
             normalizedUser.email = '••••••••@••••.•••';
             normalizedUser.profile = {
               avatar: found.profile?.avatar || '',
@@ -503,7 +411,10 @@ export const Profile = () => {
   };
 
   const fetchUserPosts = async () => {
-    if (!id) return;
+    if (!id) {
+      setPostsLoading(false);
+      return;
+    }
     setPostsLoading(true);
     if (isMockMode) {
       // Find user to check privacy
@@ -517,7 +428,8 @@ export const Profile = () => {
           const isAdmin = user?.role === 'admin';
           const connections = found.connections || [];
           const isConnected = connections.includes(user?.id || '');
-          if (found.isPrivate && !isOwner && !isAdmin && !isConnected) {
+          const targetIsAdmin = found.role === 'admin';
+          if (found.isPrivate && !isOwner && !isAdmin && !isConnected && !targetIsAdmin) {
             isPrivateMasked = true;
           }
         }
@@ -552,7 +464,7 @@ export const Profile = () => {
     fetchProfile();
     fetchUserPosts();
     fetchUserReposts();
-  }, [id, isMockMode, user]);
+  }, [id, user]);
 
   const handleLike = async (postId: string) => {
     await handleReact(postId, 'like');
@@ -810,34 +722,49 @@ export const Profile = () => {
         showNotification('Post Updated', 'Your post has been successfully updated.', 'success');
       }
     } else {
-      try {
-        if (editingPostId) {
-          const res = await axios.put(
-            `${API_URL}/posts/${editingPostId}`,
-            { caption, image: mediaPreview },
-            {
-              headers: { Authorization: `Bearer ${token}` }
+      setIsPostModalOpen(false);
+      setEditingPostId(null);
+      setCaption('');
+      setMediaFile(null);
+      setMediaPreview('');
+      showNotification('Uploading...', 'Your post is being processed in the background.', 'success');
+
+      if (editingPostId) {
+        const formData = new FormData();
+        formData.append('caption', caption);
+        if (mediaFile) {
+          formData.append('mediaFile', mediaFile);
+        }
+
+        axios.put(
+          `${API_URL}/posts/${editingPostId}`,
+          formData,
+          {
+            headers: { 
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'multipart/form-data'
             }
-          );
+          }
+        ).then(res => {
           setPosts(prev => prev.map(p => p._id === editingPostId ? res.data : p));
           setReposts(prev => prev.map(p => p._id === editingPostId ? res.data : p));
-          setCaption('');
-          setMediaFile(null);
-          setMediaPreview('');
-          setEditingPostId(null);
-          setIsPostModalOpen(false);
           showNotification('Post Updated', 'Your post has been successfully updated.', 'success');
-        }
-      } catch (err: any) {
-        console.error('Failed to save post:', err);
-        const errMsg = err.response?.data?.message || err.message || 'Failed to save post';
-        showNotification('Error', errMsg, 'error');
+        }).catch(err => {
+          console.error('Failed to save post:', err);
+          const errMsg = err.response?.data?.message || err.message || 'Failed to save post';
+          showNotification('Error', errMsg, 'error');
+        }).finally(() => {
+          setIsPublishing(false);
+        });
       }
     }
   };
 
   const fetchUserReposts = async () => {
-    if (!id) return;
+    if (!id) {
+      setRepostsLoading(false);
+      return;
+    }
     setRepostsLoading(true);
     
     // Check if private masked first
@@ -852,7 +779,8 @@ export const Profile = () => {
           const isAdmin = user?.role === 'admin';
           const connections = found.connections || [];
           const isConnected = connections.includes(user?.id || '') || connections.includes(user?._id || '');
-          if (found.isPrivate && !isOwner && !isAdmin && !isConnected) {
+          const targetIsAdmin = found.role === 'admin';
+          if (found.isPrivate && !isOwner && !isAdmin && !isConnected && !targetIsAdmin) {
             isPrivateMasked = true;
           }
         }
@@ -961,23 +889,39 @@ export const Profile = () => {
         );
       }
     } else {
-      try {
-        const res = await axios.post(`${API_URL}/posts/repost/${postId}`, {}, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        await refreshUser();
-        await fetchProfile();
-        await fetchUserPosts();
-        await fetchUserReposts();
+      const repostedAlready = user?.reposts?.includes(postId);
+      
+      const updatePostObject = (p: Post): Post => {
+        if (p._id !== postId) return p;
+        return {
+          ...p,
+          sharesCount: Math.max(0, p.sharesCount + (repostedAlready ? -1 : 1))
+        };
+      };
+
+      setPosts(prev => prev.map(updatePostObject));
+      setReposts(prev => prev.map(updatePostObject));
+
+      axios.post(`${API_URL}/posts/repost/${postId}`, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      }).then(res => {
+        refreshUser();
+        // optionally fetch in background
+        fetchProfile();
+        fetchUserPosts();
+        fetchUserReposts();
         showNotification(
           res.data.reposted ? 'Post Reposted' : 'Repost Removed',
           res.data.reposted ? 'Post added to your reposts.' : 'Post removed from your reposts.',
           'success'
         );
-      } catch (err: any) {
+      }).catch((err: any) => {
+        // Revert on error
+        fetchUserPosts();
+        fetchUserReposts();
         console.error('Repost error:', err);
         showNotification('Error', err.response?.data?.message || 'Failed to repost', 'error');
-      }
+      });
     }
   };
 
@@ -985,7 +929,7 @@ export const Profile = () => {
     fetchProfile();
     fetchUserPosts();
     fetchUserReposts();
-  }, [id, isMockMode, user]);
+  }, [id, user]);
 
   const handleStartChat = () => {
     if (!profile) return;
@@ -1022,11 +966,12 @@ export const Profile = () => {
   const isOwnProfile = user && (user.id === profile._id || user.id === profile.id || user._id === profile._id || user._id === profile.id);
 
   const renderPostCard = (post: Post) => {
-    const isLiked = user ? post.likes.includes(user.id) || post.likes.includes((user as any)._id) : false;
+    const userId = user?.id || (user as any)?._id;
+    const isLiked = user ? post.likes.includes(userId) : false;
+    const userReaction = post.reactions?.find(r => (typeof r.user === 'object' ? r.user._id === userId || (r.user as any).id === userId : r.user === userId))?.type;
     const authorMeta = post.author.role === 'alumni' ? 'Alumni' : 'Student';
     const companyMeta = post.author.profile?.company ? ` - ${post.author.profile.company}` : '';
     const batchMeta = post.author.profile?.batch ? ` • Batch ${post.author.profile.batch}` : '';
-    const reactionType = getUserReaction(post);
 
     return (
       <div 
@@ -1149,18 +1094,43 @@ export const Profile = () => {
           borderBottom: '1px solid var(--color-border-glass)',
           paddingBottom: '8px'
         }}>
-          <span 
-            onClick={() => setShowWhoLikedPostId(post._id)}
-            style={{ cursor: 'pointer', transition: 'color 0.2s', display: 'flex', alignItems: 'center' }}
-            onMouseEnter={(e) => e.currentTarget.style.color = 'var(--color-yellow-primary)'}
-            onMouseLeave={(e) => e.currentTarget.style.color = 'var(--color-text-muted)'}
-          >
-            {renderReactionsSummaryIcons(post)}
-            <span>{formatReactionsSummary(post)}</span>
-          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            {post.reactions && post.reactions.length > 0 ? (
+              <>
+                <div style={{ display: 'flex' }}>
+                  {Array.from(new Set(post.reactions.map(r => r.type))).slice(0, 3).map((type, i) => {
+                    const config = reactionConfig[type];
+                    if (!config) return null;
+                    const Icon = config.icon;
+                    return (
+                      <div key={type} style={{
+                        width: '18px', height: '18px', borderRadius: '50%',
+                        background: config.color, color: '#000',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        marginLeft: i > 0 ? '-6px' : '0', border: '1px solid rgba(0,0,0,0.8)', zIndex: 3 - i
+                      }}>
+                        <Icon size={10} />
+                      </div>
+                    );
+                  })}
+                </div>
+                <span>
+                  {post.reactions.length > 0 && (
+                    post.reactions.length === 1 ? (
+                      <>Liked by <span style={{ color: '#fff', fontWeight: 600 }}>{typeof post.reactions[0].user === 'object' ? (post.reactions[0].user as any).name : 'Someone'}</span></>
+                    ) : (
+                      <>Liked by <span style={{ color: '#fff', fontWeight: 600 }}>{typeof post.reactions[0].user === 'object' ? (post.reactions[0].user as any).name : 'Someone'}</span> and {post.reactions.length - 1} other{post.reactions.length - 1 === 1 ? '' : 's'}</>
+                    )
+                  )}
+                </span>
+              </>
+            ) : (
+              <span>{post.likes.length} Likes</span>
+            )}
+          </div>
           <div style={{ display: 'flex', gap: '10px' }}>
             <span>{post.comments.length} Comments</span>
-            <span>{post.sharesCount} Reposts</span>
+            
           </div>
         </div>
 
@@ -1169,58 +1139,118 @@ export const Profile = () => {
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
+          position: 'relative',
           padding: '2px 4px'
         }}>
-          <div
-            onMouseEnter={() => setHoveredPostId(post._id)}
-            onMouseLeave={() => setHoveredPostId(null)}
+          <div 
             style={{ position: 'relative' }}
+            onMouseEnter={() => {
+              if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+              hoverTimeoutRef.current = setTimeout(() => setHoveredPostIdForReactions(post._id), 300);
+            }}
+            onMouseLeave={() => {
+              if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+              hoverTimeoutRef.current = setTimeout(() => setHoveredPostIdForReactions(null), 300);
+            }}
+            onTouchStart={() => {
+              if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+              hoverTimeoutRef.current = setTimeout(() => setHoveredPostIdForReactions(post._id), 400);
+            }}
+            onTouchEnd={() => {
+              if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+            }}
+            onTouchCancel={() => {
+              if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+            }}
           >
-            {hoveredPostId === post._id && (
-              <div className="reaction-popover">
-                <span
-                  className="reaction-popover-item"
-                  onClick={() => handleReact(post._id, 'like')}
-                  title="Like"
-                  style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-yellow-primary)' }}
+            <AnimatePresence>
+              {hoveredPostIdForReactions === post._id && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                  transition={{ duration: 0.2 }}
+                  style={{
+                    position: 'absolute',
+                    bottom: 'calc(100% + 5px)',
+                    left: '-10px',
+                    background: '#1a1a1a',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    borderRadius: '30px',
+                    padding: '6px 12px',
+                    display: 'flex',
+                    gap: '12px',
+                    boxShadow: '0 10px 25px rgba(0,0,0,0.5)',
+                    zIndex: 100
+                  }}
                 >
-                  <FiThumbsUp size={20} />
-                </span>
-                <span
-                  className="reaction-popover-item"
-                  onClick={() => handleReact(post._id, 'funny')}
-                  title="Funny"
-                  style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-yellow-primary)' }}
-                >
-                  <FiSmile size={20} />
-                </span>
-                <span
-                  className="reaction-popover-item"
-                  onClick={() => handleReact(post._id, 'celebrate')}
-                  title="Celebrate"
-                  style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-yellow-primary)' }}
-                >
-                  <FiAward size={20} />
-                </span>
-              </div>
-            )}
+                  {/* Invisible bridge to prevent mouse leave gap */}
+                  <div style={{
+                    position: 'absolute',
+                    bottom: '-15px',
+                    left: 0,
+                    right: 0,
+                    height: '15px'
+                  }} />
+                  
+                  {Object.entries(reactionConfig).map(([type, config]) => {
+                    const Icon = config.icon;
+                    return (
+                      <button
+                        key={type}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleReact(post._id, type);
+                          setHoveredPostIdForReactions(null);
+                        }}
+                        className="reaction-icon-btn"
+                        title={config.label}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          cursor: 'pointer',
+                          padding: 0,
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          gap: '4px',
+                          transition: 'transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275)'
+                        }}
+                      >
+                        <div style={{
+                          width: '38px', height: '38px', borderRadius: '50%',
+                          background: `${config.color}15`,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          color: config.color,
+                          border: `1px solid ${config.color}40`
+                        }}>
+                          <Icon size={20} fill={type === 'love' || type === 'support' || type === 'like' ? config.color : 'none'} />
+                        </div>
+                      </button>
+                    );
+                  })}
+                </motion.div>
+              )}
+            </AnimatePresence>
             <button
-              onClick={() => handleLike(post._id)}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleReact(post._id, userReaction || 'like');
+              }}
               style={{
                 background: 'none',
                 border: 'none',
-                color: reactionType ? 'var(--color-yellow-primary)' : 'var(--color-text-gray)',
+                color: userReaction ? reactionConfig[userReaction].color : 'var(--color-text-gray)',
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '6px',
-                fontSize: '12.5px',
-                fontWeight: 500,
-                transition: 'color 0.2s ease'
+                fontSize: '13px',
+                fontWeight: 500
               }}
             >
-              {renderReactionIcon(reactionType)}
-              <span>{getReactionLabel(reactionType)}</span>
+              {userReaction ? React.createElement(reactionConfig[userReaction].icon, { fill: userReaction === 'love' || userReaction === 'like' || userReaction === 'support' ? reactionConfig[userReaction].color : 'none', size: 18 }) : <FiThumbsUp size={18} />}
+              <span>{userReaction ? reactionConfig[userReaction].label : 'Like'}</span>
             </button>
           </div>
 
@@ -1258,24 +1288,6 @@ export const Profile = () => {
           >
             <FiRepeat size={16} style={{ color: user?.reposts?.includes(post._id) ? 'var(--color-yellow-primary)' : 'inherit' }} />
             <span>Repost</span>
-          </button>
-
-          <button
-            onClick={() => setSharingPost(post)}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: 'var(--color-text-gray)',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              fontSize: '12.5px',
-              fontWeight: 500
-            }}
-          >
-            <FiShare2 size={16} />
-            <span>Share</span>
           </button>
         </div>
 
@@ -2121,9 +2133,10 @@ export const Profile = () => {
                   <button
                     type="submit"
                     className="btn-primary"
-                    style={{ flex: 1, justifyItems: 'center', justifyContent: 'center' }}
+                    disabled={isPublishing}
+                    style={{ flex: 1, justifyItems: 'center', justifyContent: 'center', opacity: isPublishing ? 0.7 : 1, cursor: isPublishing ? 'not-allowed' : 'pointer' }}
                   >
-                    {editingPostId ? 'Save Changes' : 'Publish Post'}
+                    {isPublishing ? 'Publishing...' : (editingPostId ? 'Save Changes' : 'Publish Post')}
                   </button>
                 </div>
               </form>
@@ -2384,69 +2397,6 @@ export const Profile = () => {
               </p>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                {/* Option 2: Share on LinkedIn */}
-                <button
-                  onClick={() => {
-                    const text = `${sharingPost.author.name} shared an update on Maatram Alumni Connect: "${sharingPost.caption.substring(0, 120)}..."`;
-                    const url = `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent('https://maatramfoundation.org')}&text=${encodeURIComponent(text)}`;
-                    window.open(url, '_blank', 'width=600,height=600,noopener,noreferrer');
-                    setSharingPost(null);
-                    showNotification('Success', 'LinkedIn sharing window opened.', 'success');
-                  }}
-                  className="btn-outline"
-                  style={{
-                    justifyContent: 'center',
-                    gap: '10px',
-                    padding: '12px',
-                    fontSize: '14px',
-                    borderColor: '#0077b5',
-                    color: '#0077b5',
-                    background: 'rgba(0, 119, 181, 0.05)',
-                    width: '100%'
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = '#0077b5';
-                    e.currentTarget.style.color = '#ffffff';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = 'rgba(0, 119, 181, 0.05)';
-                    e.currentTarget.style.color = '#0077b5';
-                  }}
-                >
-                  <FiLinkedin size={16} /> Share on LinkedIn
-                </button>
-
-                {/* Option 3: Share on Twitter / X */}
-                <button
-                  onClick={() => {
-                    const text = `${sharingPost.author.name} on Maatram Alumni Connect: "${sharingPost.caption.substring(0, 140)}..."`;
-                    const url = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent('https://maatramfoundation.org')}`;
-                    window.open(url, '_blank', 'width=600,height=600,noopener,noreferrer');
-                    setSharingPost(null);
-                    showNotification('Success', 'Twitter sharing window opened.', 'success');
-                  }}
-                  className="btn-outline"
-                  style={{
-                    justifyContent: 'center',
-                    gap: '10px',
-                    padding: '12px',
-                    fontSize: '14px',
-                    borderColor: '#1da1f2',
-                    color: '#1da1f2',
-                    background: 'rgba(29, 161, 242, 0.05)',
-                    width: '100%'
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = '#1da1f2';
-                    e.currentTarget.style.color = '#ffffff';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = 'rgba(29, 161, 242, 0.05)';
-                    e.currentTarget.style.color = '#1da1f2';
-                  }}
-                >
-                  <FiTwitter size={16} /> Share on Twitter / X
-                </button>
 
                 {/* Option 4: Copy Link */}
                 <button
@@ -2561,48 +2511,6 @@ export const Profile = () => {
                 >
                   <FiMessageSquare size={18} />
                   Comment on Post
-                </button>
-
-                {/* Repost Option */}
-                <button
-                  onClick={() => {
-                    handleRepostToggle(activePostOptions._id);
-                    setActivePostOptions(null);
-                  }}
-                  className="btn-outline"
-                  style={{
-                    justifyContent: 'flex-start',
-                    gap: '12px',
-                    padding: '12px 16px',
-                    fontSize: '14px',
-                    borderColor: user?.reposts?.includes(activePostOptions._id) ? 'var(--color-yellow-primary)' : 'rgba(255,255,255,0.08)',
-                    color: user?.reposts?.includes(activePostOptions._id) ? 'var(--color-yellow-primary)' : '#ffffff'
-                  }}
-                >
-                  <FiShare2 size={18} />
-                  {user?.reposts?.includes(activePostOptions._id) ? 'Undo Repost' : 'Repost / Share'}
-                </button>
-
-                {/* Copy Link Option */}
-                <button
-                  onClick={() => {
-                    const shareUrl = `${window.location.origin}/dashboard/feed?post=${activePostOptions._id}`;
-                    navigator.clipboard.writeText(shareUrl);
-                    showNotification('Success', 'Post link copied to clipboard!', 'success');
-                    setActivePostOptions(null);
-                  }}
-                  className="btn-outline"
-                  style={{
-                    justifyContent: 'flex-start',
-                    gap: '12px',
-                    padding: '12px 16px',
-                    fontSize: '14px',
-                    borderColor: 'rgba(255,255,255,0.08)',
-                    color: '#ffffff'
-                  }}
-                >
-                  <FiCopy size={18} />
-                  Copy Post Link
                 </button>
               </div>
             </motion.div>

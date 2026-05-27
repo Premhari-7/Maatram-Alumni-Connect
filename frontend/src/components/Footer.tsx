@@ -117,7 +117,7 @@ export const Footer = ({ minimal = false }: FooterProps) => {
               Reach Us
             </h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', fontSize: '13.5px', color: 'var(--color-text-gray)' }}>
-              <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+              <div className="contact-item" style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
                 <FiMapPin style={{ color: 'var(--color-yellow-primary)', marginTop: '3px', flexShrink: 0 }} size={16} />
                 <span style={{ lineHeight: '1.6' }}>
                   No. 47, 7th Cross Street,<br />
@@ -126,7 +126,7 @@ export const Footer = ({ minimal = false }: FooterProps) => {
                 </span>
               </div>
               
-              <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+              <div className="contact-item" style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
                 <FiMail style={{ color: 'var(--color-yellow-primary)', flexShrink: 0 }} size={16} />
                 <a 
                   href="mailto:enquiry@maatramfoundation.com"
@@ -138,7 +138,7 @@ export const Footer = ({ minimal = false }: FooterProps) => {
                 </a>
               </div>
 
-              <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+              <div className="contact-item" style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
                 <FiPhone style={{ color: 'var(--color-yellow-primary)', marginTop: '3px', flexShrink: 0 }} size={16} />
                 <span style={{ lineHeight: '1.6' }}>
                   +91 9551014389 / 8925927943 / 8925927948 / 8925927944 / 7358290637
@@ -331,7 +331,7 @@ export const Footer = ({ minimal = false }: FooterProps) => {
       )}
 
       {/* Footer Branding Bottom Row - Clean Premium Copyright and Original Developer Credits */}
-      <div style={{
+      <div className="footer-bottom-bar" style={{
         maxWidth: '1200px',
         margin: minimal ? '0 auto' : '40px auto 0 auto',
         paddingTop: '20px',
@@ -473,11 +473,27 @@ export const Footer = ({ minimal = false }: FooterProps) => {
             flex-direction: column;
             align-items: center;
           }
+          .contact-item {
+            justify-content: center;
+            text-align: center;
+            flex-direction: column;
+            align-items: center !important;
+            gap: 8px !important;
+          }
+          .contact-item span, .contact-item a {
+            text-align: center;
+          }
           .footer-deco-container {
             grid-column: span 1;
           }
           .footer-grid li a {
             text-align: center;
+          }
+          .footer-bottom-bar {
+            justify-content: center !important;
+            text-align: center;
+            flex-direction: column;
+            gap: 12px !important;
           }
         }
       `}</style>

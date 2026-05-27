@@ -7,7 +7,8 @@ import axios from 'axios';
 import { motion } from 'framer-motion';
 
 export const Chat = () => {
-  const { user, token, isMockMode } = useAuth();
+  const { user, token } = useAuth();
+  const isMockMode = false;
   const { 
     onlineUsers, 
     typingUsers, 
@@ -85,7 +86,7 @@ export const Chat = () => {
       };
       fetchPartnerProfile();
     }
-  }, [activePartnerId, conversations, isMockMode, token]);
+  }, [activePartnerId, conversations, token]);
 
   // Emit typing status
   useEffect(() => {

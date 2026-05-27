@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { useAuth, API_URL } from '../context/AuthContext';
+import { useAuth, API_URL, DEFAULT_AVATAR } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
-import { FiCalendar, FiUser, FiLink, FiTag, FiPlus, FiUsers, FiClock, FiMapPin } from 'react-icons/fi';
+import { FiCalendar, FiUser, FiLink, FiTag, FiPlus, FiUsers, FiClock, FiMapPin, FiX, FiTrash2, FiAlertCircle } from 'react-icons/fi';
 import axios from 'axios';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface Event {
   _id: string;
@@ -12,15 +13,19 @@ interface Event {
   date: string;
   speaker: string;
   location: string;
-  registrations: string[];
+  registrations: any[];
 }
 
 export const Events = () => {
-  const { user, token, isMockMode } = useAuth();
+  const { user, token } = useAuth();
+  const isMockMode = false;
   const { showNotification } = useNotification();
 
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const [eventToDelete, setEventToDelete] = useState<string | null>(null);
+  const [showRegistrationsModal, setShowRegistrationsModal] = useState<Event | null>(null);
 
   // New Event Form State (Admin only)
   const [title, setTitle] = useState('');
@@ -32,6 +37,30 @@ export const Events = () => {
   
   // Show Admin Form toggle
   const [showAdminForm, setShowAdminForm] = useState(false);
+  const [editingEventId, setEditingEventId] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const openFormForEdit = (ev: Event) => {
+    setTitle(ev.title);
+    setDescription(ev.description);
+    setType(ev.type);
+    setDate(new Date(ev.date).toISOString().slice(0, 16)); // Format for datetime-local
+    setSpeaker(ev.speaker);
+    setLocation(ev.location);
+    setEditingEventId(ev._id);
+    setShowAdminForm(true);
+  };
+  
+  const resetForm = () => {
+    setTitle('');
+    setDescription('');
+    setType('webinar');
+    setDate('');
+    setSpeaker('');
+    setLocation('');
+    setEditingEventId(null);
+    setShowAdminForm(false);
+  };
 
   const fetchEvents = async () => {
     if (isMockMode) {
@@ -68,9 +97,9 @@ export const Events = () => {
     if (isMockMode) {
       const updated = events.map(ev => {
         if (ev._id === eventId) {
-          const joined = ev.registrations.includes(user.id);
+          const joined = ev.registrations.some((r: any) => (r._id || r) === user.id);
           const newList = joined
-            ? ev.registrations.filter(id => id !== user.id)
+            ? ev.registrations.filter((r: any) => (r._id || r) !== user.id)
             : [...ev.registrations, user.id];
           
           showNotification(
@@ -98,87 +127,92 @@ export const Events = () => {
     }
   };
 
-  // Create new event
-  const handleCreateEvent = async (e: React.FormEvent) => {
+  // Create or Update event
+  const handleSubmitEvent = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title || !description || !date || !speaker || !location) return;
+    if (!title || !description || !date || !speaker || !location) {
+      showNotification('Error', 'Please fill all required fields.', 'error');
+      return;
+    }
 
+    setIsSubmitting(true);
     if (isMockMode) {
-      const newEv: Event = {
-        _id: 'ev_' + Date.now(),
-        title,
-        description,
-        type,
-        date: new Date(date).toISOString(),
-        speaker,
-        location,
-        registrations: []
-      };
-
-      const updated = [newEv, ...events];
-      setEvents(updated);
-      localStorage.setItem('mock_db_events', JSON.stringify(updated));
-
-      // Seeding mock notifications for all student users
-      try {
-        const dbUsersStr = localStorage.getItem('mock_db_users');
-        if (dbUsersStr) {
-          const allUsers = JSON.parse(dbUsersStr);
-          const students = allUsers.filter((u: any) => u.role === 'student');
-          
-          const notifStr = localStorage.getItem('mock_db_notifications');
-          const notifs = notifStr ? JSON.parse(notifStr) : [];
-          
-          students.forEach((student: any) => {
-            notifs.unshift({
-              _id: 'notif_ev_' + Date.now() + Math.random(),
-              sender: {
-                _id: user?.id,
-                name: user?.name,
-                role: user?.role,
-                profile: { avatar: user?.profile?.avatar || '' }
-              },
-              recipient: student.id || student._id,
-              type: 'event',
-              text: `posted a new event: "${title}"`,
-              isRead: false,
-              createdAt: new Date().toISOString()
-            });
-          });
-          localStorage.setItem('mock_db_notifications', JSON.stringify(notifs));
-          
-          // Dispatch custom event to trigger notification components to re-fetch if they listen
-          window.dispatchEvent(new Event('mock_notifications_updated'));
-        }
-      } catch (err) {
-        console.error('Error seeding mock notifications:', err);
+      if (editingEventId) {
+        const updated = events.map(ev => 
+          ev._id === editingEventId 
+            ? { ...ev, title, description, type, date: new Date(date).toISOString(), speaker, location }
+            : ev
+        );
+        setEvents(updated);
+        localStorage.setItem('mock_db_events', JSON.stringify(updated));
+        showNotification('Event Updated', 'The event has been successfully updated.', 'success');
+      } else {
+        const newEv: Event = {
+          _id: 'ev_' + Date.now(),
+          title,
+          description,
+          type,
+          date: new Date(date).toISOString(),
+          speaker,
+          location,
+          registrations: []
+        };
+        const updated = [newEv, ...events];
+        setEvents(updated);
+        localStorage.setItem('mock_db_events', JSON.stringify(updated));
+        showNotification('Event Created', 'Upcoming event has been published successfully.', 'success');
       }
-      
-      // Reset form
-      setTitle('');
-      setDescription('');
-      setDate('');
-      setSpeaker('');
-      setLocation('');
-      setShowAdminForm(false);
-      showNotification('Event Created', 'Upcoming event has been published successfully.', 'success');
+      resetForm();
+      setIsSubmitting(false);
     } else {
       try {
-        const res = await axios.post(`${API_URL}/events`, {
-          title, description, type, date, speaker, location
-        }, {
+        if (editingEventId) {
+          const res = await axios.put(`${API_URL}/events/${editingEventId}`, {
+            title, description, type, date, speaker, location
+          }, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          setEvents(prev => prev.map(ev => ev._id === editingEventId ? res.data : ev));
+          showNotification('Event Updated', 'The event has been successfully updated.', 'success');
+        } else {
+          const res = await axios.post(`${API_URL}/events`, {
+            title, description, type, date, speaker, location
+          }, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          setEvents(prev => [res.data, ...prev]);
+          showNotification('Event Created', 'Upcoming event has been published successfully.', 'success');
+        }
+        resetForm();
+      } catch (err: any) {
+        console.error('Error saving event:', err);
+        showNotification('Error', err.response?.data?.message || 'Failed to save event.', 'error');
+      } finally {
+        setIsSubmitting(false);
+      }
+    }
+  };
+
+  const confirmDeleteEvent = async () => {
+    if (!eventToDelete) return;
+    const eventId = eventToDelete;
+    setEventToDelete(null);
+    
+    if (isMockMode) {
+      const updated = events.filter(ev => ev._id !== eventId);
+      setEvents(updated);
+      localStorage.setItem('mock_db_events', JSON.stringify(updated));
+      showNotification('Event Deleted', 'The event was successfully deleted.', 'success');
+    } else {
+      try {
+        await axios.delete(`${API_URL}/events/${eventId}`, {
           headers: { Authorization: `Bearer ${token}` }
         });
-        setEvents(prev => [res.data, ...prev]);
-        setTitle('');
-        setDescription('');
-        setDate('');
-        setSpeaker('');
-        setLocation('');
-        setShowAdminForm(false);
-        showNotification('Event Created', 'Upcoming event has been published successfully.', 'success');
-      } catch (err) {
-        console.error('Error creating event:', err);
+        setEvents(prev => prev.filter(ev => ev._id !== eventId));
+        showNotification('Event Deleted', 'The event was successfully deleted.', 'success');
+      } catch (err: any) {
+        console.error('Error deleting event:', err);
+        showNotification('Error', err.response?.data?.message || 'Failed to delete event.', 'error');
       }
     }
   };
@@ -201,10 +235,16 @@ export const Events = () => {
         {(user?.role === 'admin' || user?.role === 'alumni') && (
           <button 
             className="btn-primary" 
-            onClick={() => setShowAdminForm(!showAdminForm)}
+            onClick={() => {
+              if (showAdminForm) {
+                resetForm();
+              } else {
+                setShowAdminForm(true);
+              }
+            }}
             style={{ gap: '8px' }}
           >
-            <FiPlus size={18} /> {showAdminForm ? 'Show Events' : 'Create Event'}
+            <FiPlus size={18} /> {showAdminForm ? 'Close Form' : 'Create Event'}
           </button>
         )}
       </div>
@@ -221,10 +261,10 @@ export const Events = () => {
           }}
         >
           <h3 style={{ fontSize: '18px', fontWeight: 800, fontFamily: 'var(--font-title)', marginBottom: '20px', color: '#ffffff' }}>
-            Schedule New Event
+            {editingEventId ? 'Edit Event' : 'Schedule New Event'}
           </h3>
           
-          <form onSubmit={handleCreateEvent} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }} className="admin-event-form">
+          <form onSubmit={handleSubmitEvent} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }} className="admin-event-form">
             
             <div className="form-group">
               <label className="form-label">Event Title</label>
@@ -313,10 +353,10 @@ export const Events = () => {
             </div>
 
             <div style={{ gridColumn: 'span 2', display: 'flex', gap: '16px', marginTop: '10px' }} className="admin-form-span">
-              <button type="submit" className="btn-primary" style={{ padding: '10px 24px' }}>
-                Publish Event
+              <button type="submit" disabled={isSubmitting} className="btn-primary" style={{ padding: '10px 24px', opacity: isSubmitting ? 0.7 : 1 }}>
+                {isSubmitting ? 'Saving...' : editingEventId ? 'Save Changes' : 'Publish Event'}
               </button>
-              <button type="button" className="btn-outline" onClick={() => setShowAdminForm(false)} style={{ padding: '10px 24px' }}>
+              <button type="button" className="btn-outline" onClick={resetForm} style={{ padding: '10px 24px' }}>
                 Cancel
               </button>
             </div>
@@ -339,7 +379,7 @@ export const Events = () => {
           gap: '24px'
         }} className="events-grid-layout">
           {events.map((ev) => {
-            const isRegistered = user ? ev.registrations.includes(user.id) : false;
+            const isRegistered = user ? ev.registrations.some((r: any) => (r._id || r) === user.id) : false;
             const eventDate = new Date(ev.date);
 
             return (
@@ -354,20 +394,41 @@ export const Events = () => {
                   borderColor: 'rgba(255, 215, 0, 0.08)'
                 }}
               >
-                {/* Header details */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                  <span style={{
-                    fontSize: '9px',
-                    fontWeight: 650,
-                    textTransform: 'uppercase',
-                    color: 'var(--color-yellow-primary)',
-                    border: '1px solid rgba(255,215,0,0.2)',
-                    padding: '2px 8px',
-                    borderRadius: '4px',
-                    background: 'rgba(255,215,0,0.03)'
-                  }}>
-                    {ev.type}
-                  </span>
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <span style={{
+                      fontSize: '9px',
+                      fontWeight: 650,
+                      textTransform: 'uppercase',
+                      color: 'var(--color-yellow-primary)',
+                      border: '1px solid rgba(255,215,0,0.2)',
+                      padding: '2px 8px',
+                      borderRadius: '4px',
+                      background: 'rgba(255,215,0,0.03)'
+                    }}>
+                      {ev.type}
+                    </span>
+
+                    {(user?.role === 'admin' || user?.role === 'alumni') && (
+                      <div style={{ display: 'flex', gap: '6px' }}>
+                        <button
+                          onClick={() => {
+                            openFormForEdit(ev);
+                            window.scrollTo({ top: 0, behavior: 'smooth' });
+                          }}
+                          style={{ background: 'none', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer', fontSize: '12px', textDecoration: 'underline' }}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => setEventToDelete(ev._id)}
+                          style={{ background: 'none', border: 'none', color: '#ff4444', cursor: 'pointer', fontSize: '12px', textDecoration: 'underline' }}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    )}
+                  </div>
 
                   <span style={{ fontSize: '11px', color: 'var(--color-text-gray)', display: 'flex', alignItems: 'center', gap: '4px' }}>
                     <FiClock /> {eventDate.toLocaleDateString()} at {eventDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -417,9 +478,25 @@ export const Events = () => {
                   borderTop: '1px solid var(--color-border-glass)',
                   paddingTop: '16px'
                 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: 'var(--color-text-gray)' }}>
+                  <div 
+                    style={{ 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      gap: '6px', 
+                      fontSize: '12px', 
+                      color: 'var(--color-text-gray)', 
+                      cursor: (user?.role === 'admin' || user?.role === 'alumni') ? 'pointer' : 'default' 
+                    }}
+                    onClick={() => {
+                      if (user?.role === 'admin' || user?.role === 'alumni') {
+                        setShowRegistrationsModal(ev);
+                      }
+                    }}
+                  >
                     <FiUsers />
-                    <span>{ev.registrations.length} Registered</span>
+                    <span style={{ textDecoration: (user?.role === 'admin' || user?.role === 'alumni') ? 'underline' : 'none' }}>
+                      {ev.registrations.length} Registered
+                    </span>
                   </div>
 
                   <button
@@ -445,6 +522,141 @@ export const Events = () => {
           })}
         </div>
       )}
+
+      {/* Delete Confirmation Modal */}
+      <AnimatePresence>
+        {eventToDelete && (
+          <div className="notification-overlay" style={{ zIndex: 10010, background: 'rgba(0, 0, 0, 0.4)', backdropFilter: 'blur(5px)' }} onClick={() => setEventToDelete(null)}>
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="glass-panel"
+              style={{
+                width: '90%',
+                maxWidth: '400px',
+                padding: '24px',
+                textAlign: 'center',
+                border: '1px solid #ff4444',
+                boxShadow: '0 10px 40px rgba(255, 68, 68, 0.15)',
+                background: 'rgba(10, 10, 10, 0.95)'
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div style={{
+                width: '56px',
+                height: '56px',
+                borderRadius: '50%',
+                background: 'rgba(255, 68, 68, 0.1)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                margin: '0 auto 16px auto',
+                color: '#ff4444'
+              }}>
+                <FiAlertCircle size={28} />
+              </div>
+              <h3 style={{ fontSize: '18px', fontWeight: 800, fontFamily: 'var(--font-title)', marginBottom: '12px', color: '#ffffff' }}>
+                Delete Event
+              </h3>
+              <p style={{ fontSize: '14px', color: 'var(--color-text-gray)', lineHeight: '1.5', marginBottom: '24px' }}>
+                Are you sure you want to permanently delete this event? This action cannot be undone and registered users will be notified.
+              </p>
+              <div style={{ display: 'flex', gap: '12px' }}>
+                <button
+                  type="button"
+                  onClick={() => setEventToDelete(null)}
+                  className="btn-outline"
+                  style={{ flex: 1, justifyItems: 'center', justifyContent: 'center' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={confirmDeleteEvent}
+                  className="btn-primary"
+                  style={{ flex: 1, background: '#ff4444', borderColor: '#ff4444', color: '#fff', justifyItems: 'center', justifyContent: 'center' }}
+                >
+                  Delete
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Registered Users Modal */}
+      <AnimatePresence>
+        {showRegistrationsModal && (
+          <div className="notification-overlay" style={{ zIndex: 10010, background: 'rgba(0, 0, 0, 0.4)', backdropFilter: 'blur(5px)' }} onClick={() => setShowRegistrationsModal(null)}>
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="glass-panel"
+              style={{
+                width: '90%',
+                maxWidth: '480px',
+                maxHeight: '80vh',
+                display: 'flex',
+                flexDirection: 'column',
+                padding: '0',
+                border: '1px solid var(--color-yellow-primary)',
+                boxShadow: '0 10px 40px rgba(255, 215, 0, 0.15)',
+                background: 'rgba(10, 10, 10, 0.95)',
+                overflow: 'hidden'
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--color-border-glass)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <h3 style={{ fontSize: '18px', fontWeight: 800, fontFamily: 'var(--font-title)', color: '#ffffff' }}>
+                    Registered Users
+                  </h3>
+                  <p style={{ fontSize: '12px', color: 'var(--color-text-gray)', marginTop: '2px' }}>
+                    {showRegistrationsModal.title}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowRegistrationsModal(null)}
+                  style={{ background: 'none', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer' }}
+                >
+                  <FiX size={20} />
+                </button>
+              </div>
+              
+              <div style={{ padding: '24px', overflowY: 'auto', flex: 1 }}>
+                {showRegistrationsModal.registrations.length === 0 ? (
+                  <div style={{ textAlign: 'center', color: 'var(--color-text-gray)', padding: '20px 0' }}>
+                    No users have registered yet.
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                    {showRegistrationsModal.registrations.map((r: any, idx: number) => {
+                      const userId = typeof r === 'string' ? r : r._id;
+                      const name = r.name || 'Anonymous User';
+                      const email = r.email || 'No email provided';
+                      const role = r.role || 'Unknown';
+                      const avatar = r.profile?.avatar || DEFAULT_AVATAR;
+
+                      return (
+                        <div key={userId || idx} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', background: 'rgba(255,255,255,0.02)', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                          <img src={avatar} alt={name} style={{ width: '40px', height: '40px', borderRadius: '50%', objectFit: 'cover' }} />
+                          <div>
+                            <div style={{ color: '#ffffff', fontWeight: 600, fontSize: '14px' }}>{name}</div>
+                            <div style={{ color: 'var(--color-text-gray)', fontSize: '12px' }}>{email}</div>
+                            <div style={{ color: 'var(--color-yellow-primary)', fontSize: '10px', textTransform: 'uppercase', marginTop: '4px', fontWeight: 700 }}>{role}</div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       <style>{`
         @media (max-width: 900px) {

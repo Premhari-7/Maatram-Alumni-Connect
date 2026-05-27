@@ -10,6 +10,8 @@ interface UnverifiedAlumni {
   email: string;
   role: string;
   isVerified: boolean;
+  maatramId?: string;
+  createdAt?: string;
   profile: {
     avatar: string;
     department: string;
@@ -20,147 +22,64 @@ interface UnverifiedAlumni {
 }
 
 export const AdminPanel = () => {
-  const { user, token, isMockMode } = useAuth();
+  const { user, token } = useAuth();
+  const isMockMode = false;
   const { showNotification } = useNotification();
 
-  const [pendingList, setPendingList] = useState<UnverifiedAlumni[]>([]);
   const [allUsersList, setAllUsersList] = useState<any[]>([]);
-  const [activeTab, setActiveTab] = useState<'pending' | 'scholar' | 'alumni' | 'admin'>('pending');
+  const [activeTab, setActiveTab] = useState<'scholar' | 'alumni' | 'admin'>('scholar');
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
+  const [showDeleteModal, setShowDeleteModal] = useState<{ isOpen: boolean, userId: string, userName: string }>({ isOpen: false, userId: '', userName: '' });
   const [stats, setStats] = useState({
     totalUsers: 0,
     scholarsCount: 0,
-    alumniCount: 0,
-    pendingAlumniCount: 0
+    alumniCount: 0
   });
 
   const loadAdminData = async () => {
-    if (isMockMode) {
-      const mockUsersStr = localStorage.getItem('mock_db_users');
-      if (mockUsersStr) {
-        const allUsers = JSON.parse(mockUsersStr) as any[];
-        setAllUsersList(allUsers);
-        
-        // Find unverified alumni AND students awaiting approval
-        const pending = allUsers.filter(u => (u.role === 'alumni' && !u.isVerified) || (u.role === 'student' && !u.isVerified));
-        setPendingList(pending);
-
-        // Stats calculation
-        setStats({
-          totalUsers: allUsers.length,
-          scholarsCount: allUsers.filter(u => u.role === 'student' && u.isVerified).length,
-          alumniCount: allUsers.filter(u => u.role === 'alumni' && u.isVerified).length,
-          pendingAlumniCount: pending.length
-        });
-      }
+    try {
+      const res = await axios.get(`${API_URL}/users/admin/analytics`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setStats({
+        totalUsers: res.data.totalUsers || 0,
+        scholarsCount: res.data.studentsCount || 0,
+        alumniCount: res.data.alumniCount || 0
+      });
+      const listRes = await axios.get(`${API_URL}/users/admin/users`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setAllUsersList(listRes.data);
+    } catch (err) {
+      console.error('Error fetching admin data:', err);
+    } finally {
       setLoading(false);
-    } else {
-      try {
-        const res = await axios.get(`${API_URL}/users/admin/analytics`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        setStats({
-          totalUsers: res.data.totalUsers || 0,
-          scholarsCount: res.data.studentsCount || 0,
-          alumniCount: res.data.alumniCount || 0,
-          pendingAlumniCount: res.data.unverifiedAlumniCount || 0
-        });
-
-        // Use the correct admin endpoint to get ALL users
-        const listRes = await axios.get(`${API_URL}/users/admin/users`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        setAllUsersList(listRes.data);
-        // Show all unverified users (alumni and students who need approval)
-        setPendingList(listRes.data.filter((u: any) => (u.role === 'alumni' || u.role === 'student') && !u.isVerified));
-      } catch (err) {
-        console.error('Error fetching admin data:', err);
-      } finally {
-        setLoading(false);
-      }
     }
   };
 
   useEffect(() => {
     loadAdminData();
-  }, [isMockMode]);
+  }, []);
 
-  // Approve alumni account
-  const handleApproveAlumni = async (targetUserId: string) => {
-    if (isMockMode) {
-      const mockUsersStr = localStorage.getItem('mock_db_users');
-      if (mockUsersStr) {
-        const allUsers = JSON.parse(mockUsersStr) as any[];
-        const updated = allUsers.map(u => {
-          if (u._id === targetUserId) {
-            return { ...u, isVerified: true };
-          }
-          return u;
-        });
 
-        localStorage.setItem('mock_db_users', JSON.stringify(updated));
-        showNotification('Alumni Verified', 'The alumni account has been approved successfully.', 'success');
-        loadAdminData();
-      }
-    } else {
-      try {
-        await axios.post(`${API_URL}/users/admin/verify/${targetUserId}`, {}, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        showNotification('Alumni Verified', 'The alumni account has been approved successfully.', 'success');
-        loadAdminData();
-      } catch (err) {
-        console.error('Verify failed:', err);
-      }
-    }
-  };
 
   // Delete user account
-  const handleDeleteUser = async (targetUserId: string, userName: string) => {
-    const currentId = user?.id || (user as any)?._id;
-    if (targetUserId === currentId) {
-      showNotification('Action Blocked', 'You cannot delete your own admin account.', 'warning');
-      return;
+  const confirmDeleteUser = async () => {
+    const { userId, userName } = showDeleteModal;
+    
+    try {
+      await axios.delete(`${API_URL}/users/admin/delete/${userId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      showNotification('User Deleted', `${userName}'s account and all associated data have been completely removed.`, 'success');
+      loadAdminData();
+    } catch (err: any) {
+      console.error('Action failed:', err);
+      showNotification('Error', err.response?.data?.message || 'Failed to complete action.', 'error');
     }
-
-    if (!window.confirm(`Are you sure you want to permanently delete the account for ${userName}? All their profile data and posts will be removed.`)) {
-      return;
-    }
-
-    if (isMockMode) {
-      const mockUsersStr = localStorage.getItem('mock_db_users');
-      if (mockUsersStr) {
-        const allUsers = JSON.parse(mockUsersStr) as any[];
-        const updated = allUsers.filter(u => u._id !== targetUserId && u.id !== targetUserId);
-        localStorage.setItem('mock_db_users', JSON.stringify(updated));
-
-        // Delete their posts in mock DB
-        const mockPostsStr = localStorage.getItem('mock_db_posts');
-        if (mockPostsStr) {
-          const posts = JSON.parse(mockPostsStr) as any[];
-          const updatedPosts = posts.filter(p => {
-            const authorId = p.author?.id || p.author?._id || p.author;
-            return authorId !== targetUserId;
-          });
-          localStorage.setItem('mock_db_posts', JSON.stringify(updatedPosts));
-        }
-
-        showNotification('User Deleted', `${userName}'s account and posts have been removed (Mock).`, 'success');
-        loadAdminData();
-      }
-    } else {
-      try {
-        await axios.delete(`${API_URL}/users/admin/delete/${targetUserId}`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        showNotification('User Deleted', `${userName}'s account has been successfully removed.`, 'success');
-        loadAdminData();
-      } catch (err: any) {
-        console.error('Delete failed:', err);
-        showNotification('Error', err.response?.data?.message || 'Failed to delete user.', 'error');
-      }
-    }
+    
+    setShowDeleteModal({ isOpen: false, userId: '', userName: '' });
   };
 
   if (user?.role !== 'admin') {
@@ -194,18 +113,17 @@ export const AdminPanel = () => {
       }} className="admin-stats-grid">
         {[
           { label: 'Total Registered', count: stats.totalUsers, icon: <FiUsers /> },
-          { label: 'Verified Scholars', count: stats.scholarsCount, icon: <FiUserCheck /> },
-          { label: 'Verified Alumni', count: stats.alumniCount, icon: <FiShield /> },
-          { label: 'Pending Approvals', count: stats.pendingAlumniCount, icon: <FiUserX /> }
+          { label: 'Total Scholars', count: stats.scholarsCount, icon: <FiUserCheck /> },
+          { label: 'Total Alumni', count: stats.alumniCount, icon: <FiShield /> }
         ].map((stat, i) => (
-          <div key={i} className="glass-panel" style={{ padding: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderColor: i === 3 && stats.pendingAlumniCount > 0 ? 'var(--color-yellow-primary)' : 'rgba(255,215,0,0.08)' }}>
+          <div key={i} className="glass-panel" style={{ padding: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderColor: 'rgba(255,215,0,0.08)' }}>
             <div>
               <span style={{ fontSize: '12px', color: 'var(--color-text-gray)' }}>{stat.label}</span>
               <h2 style={{ fontSize: '24px', fontWeight: 800, marginTop: '4px', fontFamily: 'var(--font-title)' }}>{stat.count}</h2>
             </div>
             
             <div style={{
-              background: i === 3 && stats.pendingAlumniCount > 0 ? 'rgba(255,215,0,0.15)' : 'rgba(255, 215, 0, 0.08)',
+              background: 'rgba(255, 215, 0, 0.08)',
               width: '40px',
               height: '40px',
               borderRadius: '8px',
@@ -235,9 +153,8 @@ export const AdminPanel = () => {
             flexWrap: 'wrap'
           }}>
             {[
-              { id: 'pending', label: 'Pending Approvals', count: allUsersList.filter(u => !u.isVerified && (u.role === 'alumni' || u.role === 'student')).length },
-              { id: 'scholar', label: 'Scholars', count: allUsersList.filter(u => u.isVerified && u.role === 'student').length },
-              { id: 'alumni', label: 'Alumni', count: allUsersList.filter(u => u.isVerified && u.role === 'alumni').length },
+              { id: 'scholar', label: 'Scholars', count: allUsersList.filter(u => u.role === 'student').length },
+              { id: 'alumni', label: 'Alumni', count: allUsersList.filter(u => u.role === 'alumni').length },
               { id: 'admin', label: 'System Admins', count: allUsersList.filter(u => u.role === 'admin').length }
             ].map(tab => (
               <button
@@ -304,13 +221,10 @@ export const AdminPanel = () => {
             (() => {
               const filteredUsers = allUsersList.filter(u => {
                 // Tab filter
-                if (activeTab === 'pending') {
-                  if (u.isVerified) return false;
-                  if (u.role !== 'alumni' && u.role !== 'student') return false;
-                } else if (activeTab === 'scholar') {
-                  if (!u.isVerified || u.role !== 'student') return false;
+                if (activeTab === 'scholar') {
+                  if (u.role !== 'student') return false;
                 } else if (activeTab === 'alumni') {
-                  if (!u.isVerified || u.role !== 'alumni') return false;
+                  if (u.role !== 'alumni') return false;
                 } else if (activeTab === 'admin') {
                   if (u.role !== 'admin') return false;
                 }
@@ -342,7 +256,6 @@ export const AdminPanel = () => {
                   {filteredUsers.map(member => {
                     const memberId = member._id || member.id;
                     const isSelf = memberId === user?.id || memberId === (user as any)?._id;
-                    const showApprove = !member.isVerified && (member.role === 'alumni' || member.role === 'student');
 
                     return (
                       <div 
@@ -382,6 +295,8 @@ export const AdminPanel = () => {
                             </span>
                           </div>
                           <span style={{ fontSize: '11px', color: 'var(--color-text-muted)', wordBreak: 'break-all' }}>{member.email}</span>
+                          
+
                         </div>
 
                         <div style={{ fontSize: '12px', color: 'var(--color-text-gray)' }}>
@@ -396,28 +311,16 @@ export const AdminPanel = () => {
                         </div>
 
                         <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-                          {showApprove && (
-                            <button
-                              onClick={() => handleApproveAlumni(memberId)}
-                              style={{
-                                padding: '6px 12px',
-                                fontSize: '11px',
-                                fontWeight: 600,
-                                background: 'var(--color-yellow-primary)',
-                                color: '#000000',
-                                border: 'none',
-                                borderRadius: '6px',
-                                cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '4px'
-                              }}
-                            >
-                              Approve
-                            </button>
-                          )}
+
                           <button
-                            onClick={() => handleDeleteUser(memberId, member.name)}
+                            onClick={() => {
+                              const currentId = user?.id || (user as any)?._id;
+                              if (memberId === currentId) {
+                                showNotification('Action Blocked', 'You cannot delete your own admin account.', 'warning');
+                                return;
+                              }
+                              setShowDeleteModal({ isOpen: true, userId: memberId, userName: member.name });
+                            }}
                             disabled={isSelf || (member.role === 'admin' && !isMockMode)}
                             title={isSelf ? "You cannot delete yourself" : (member.role === 'admin' && !isMockMode) ? "System administrators cannot be deleted" : "Delete user"}
                             style={{
@@ -450,9 +353,9 @@ export const AdminPanel = () => {
           </h3>
 
           <div className="glass-panel" style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '14px', borderColor: 'rgba(255,215,0,0.08)' }}>
-            <h4 style={{ fontSize: '13px', fontWeight: 700, color: 'var(--color-yellow-primary)' }}>Alumni Verification Check</h4>
+            <h4 style={{ fontSize: '13px', fontWeight: 700, color: 'var(--color-yellow-primary)' }}>Account Management</h4>
             <p style={{ fontSize: '12px', color: 'var(--color-text-gray)', lineHeight: '1.6' }}>
-              Confirm alumni identities by cross-referencing batch years and departments with Maatram student records. Keep connection gates secure.
+              Maintain community standards by removing unauthorized accounts. Users no longer need admin approval to join, but you can moderate reported users here.
             </p>
             <div style={{ borderTop: '1px solid var(--color-border-glass)', paddingTop: '12px', fontSize: '11px', color: 'var(--color-text-muted)' }}>
               Restricted Area
@@ -461,6 +364,48 @@ export const AdminPanel = () => {
         </div>
 
       </div>
+
+      {/* Custom Delete Confirmation Modal */}
+      {showDeleteModal.isOpen && (
+        <div style={{
+          position: 'fixed',
+          top: 0, left: 0, width: '100%', height: '100%',
+          background: 'rgba(0, 0, 0, 0.7)',
+          backdropFilter: 'blur(4px)',
+          zIndex: 10000,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center'
+        }}>
+          <div className="glass-panel" style={{ width: '100%', maxWidth: '400px', padding: '30px', textAlign: 'center', borderColor: 'rgba(255, 68, 68, 0.3)' }}>
+            <div style={{ background: 'rgba(255, 68, 68, 0.1)', width: '60px', height: '60px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px auto', color: '#ff4444' }}>
+              <FiUserX size={30} />
+            </div>
+            <h3 style={{ fontSize: '20px', fontWeight: 800, color: '#ffffff', marginBottom: '10px' }}>
+              Delete User?
+            </h3>
+            <p style={{ fontSize: '13px', color: 'var(--color-text-gray)', marginBottom: '25px', lineHeight: '1.5' }}>
+              Are you sure you want to permanently delete <strong>{showDeleteModal.userName}</strong>? 
+              <br /><br />
+              <span style={{ color: '#ff4444', fontWeight: 600 }}>WARNING:</span> This will permanently erase their entire profile, posts, events, messages, and connections from the database. This action cannot be undone.
+            </p>
+            <div style={{ display: 'flex', gap: '15px' }}>
+              <button 
+                onClick={() => setShowDeleteModal({ isOpen: false, userId: '', userName: '' })}
+                style={{ flex: 1, padding: '10px', background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '8px', color: '#fff', cursor: 'pointer', fontWeight: 600 }}
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={confirmDeleteUser}
+                style={{ flex: 1, padding: '10px', background: '#ff4444', border: 'none', borderRadius: '8px', color: '#fff', cursor: 'pointer', fontWeight: 600 }}
+              >
+                Confirm Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <style>{`
         @media (max-width: 900px) {

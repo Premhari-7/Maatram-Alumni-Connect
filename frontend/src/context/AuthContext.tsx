@@ -40,7 +40,6 @@ export interface User {
   name: string;
   email: string;
   role: 'admin' | 'student' | 'alumni';
-  isVerified: boolean;
   profile: UserProfile;
   connections: string[];
   savedPosts: string[];
@@ -52,7 +51,6 @@ interface AuthContextProps {
   user: User | null;
   token: string | null;
   loading: boolean;
-  isMockMode: boolean;
   login: (email: string, password: string, role: User['role'], secretAdminCode?: string) => Promise<void>;
   register: (name: string, email: string, password: string, role: User['role'], secretAdminCode?: string) => Promise<void>;
   logout: () => void;
@@ -60,7 +58,6 @@ interface AuthContextProps {
   toggleConnect: (targetUserId: string) => Promise<boolean>;
   toggleSavePost: (postId: string) => Promise<boolean>;
   refreshUser: () => Promise<void>;
-  setMockMode: (val: boolean) => void;
 }
 
 const AuthContext = createContext<AuthContextProps | undefined>(undefined);
@@ -73,9 +70,9 @@ export const useAuth = () => {
   return context;
 };
 
-export const API_URL = 'http://localhost:5000/api';
+export const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
-export const DEFAULT_AVATAR = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><rect width="24" height="24" fill="%23111111"/><circle cx="12" cy="8" r="4" fill="%23ffd700" opacity="0.8"/><path d="M12 14c-4.5 0-6.5 2.5-7 4h14c-.5-1.5-2.5-4-7-4z" fill="%23ffd700" opacity="0.9"/></svg>`;
+export const DEFAULT_AVATAR = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><rect width="24" height="24" fill="%23111111"/><circle cx="12" cy="8" r="4" fill="%23ffd700" opacity="0.8"/><path d="M12 14c-4.5 0-6.5 2.5-7-4h14c-.5-1.5-2.5-4-7-4z" fill="%23ffd700" opacity="0.9"/></svg>`;
 
 // Set default auth token in axios headers
 const setAuthToken = (token: string | null) => {
@@ -88,6 +85,7 @@ const setAuthToken = (token: string | null) => {
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [userState, setUserState] = useState<User | null>(null);
+  
   const setUser = (val: User | null | ((prev: User | null) => User | null)) => {
     if (typeof val === 'function') {
       setUserState(prev => {
@@ -117,268 +115,91 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
     }
   };
+  
   const user = userState;
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [isMockMode, setIsMockMode] = useState(false);
   const { showNotification } = useNotification();
 
-  // Load initial token & user
+  // Load initial token & user and set up axios interceptor
   useEffect(() => {
+    // Set up global axios interceptor for 401 errors
+    const interceptor = axios.interceptors.response.use(
+      (response) => response,
+      (error) => {
+        if (error.response && error.response.status === 401) {
+          // Check if it's the deleted user message or token invalid
+          if (
+            error.response.data?.message === 'User account has been removed by admin' ||
+            error.response.data?.message === 'Token is not valid' ||
+            error.response.data?.message === 'No token, authorization denied'
+          ) {
+             setToken(null);
+             setUser(null);
+             setAuthToken(null);
+             localStorage.removeItem('maatram_token');
+             localStorage.removeItem('maatram_user');
+             window.location.href = '/';
+          }
+        }
+        return Promise.reject(error);
+      }
+    );
+
     const initializeAuth = async () => {
       const storedToken = localStorage.getItem('maatram_token');
-      const storedUser = localStorage.getItem('maatram_user');
-      const mode = localStorage.getItem('maatram_mock_mode') === 'true';
-
-      setIsMockMode(mode);
-
-      if (storedToken && storedUser) {
+      
+      if (storedToken) {
         setToken(storedToken);
         setAuthToken(storedToken);
-        const parsedUser = JSON.parse(storedUser);
-        setUser(parsedUser);
 
-        if (!mode) {
-          // Verify with server
-          try {
-            const res = await axios.get(`${API_URL}/auth/me`, {
-              headers: { Authorization: `Bearer ${storedToken}` }
-            });
-            const fetchedUser = res.data;
-            if (fetchedUser._id && !fetchedUser.id) {
-              fetchedUser.id = fetchedUser._id;
-            }
-            setUser(fetchedUser);
-            localStorage.setItem('maatram_user', JSON.stringify(fetchedUser));
-          } catch (err) {
-            console.warn('Server auth verification failed, using cached user details.', err);
-            // If server is offline, keep using cached session but note fallback
+        try {
+          // Verify with server always for proper auth validation
+          const res = await axios.get(`${API_URL}/auth/me`, {
+            headers: { Authorization: `Bearer ${storedToken}` }
+          });
+          const fetchedUser = res.data;
+          
+
+          if (fetchedUser._id && !fetchedUser.id) {
+            fetchedUser.id = fetchedUser._id;
           }
+          setUser(fetchedUser);
+          localStorage.setItem('maatram_user', JSON.stringify(fetchedUser));
+        } catch (err: any) {
+          console.warn('Server auth verification failed or user blocked. Logging out.', err);
+          logout();
         }
       }
       setLoading(false);
     };
 
     initializeAuth();
+
+    return () => {
+      axios.interceptors.response.eject(interceptor);
+    };
   }, []);
-
-  // Set mock mode helper
-  const setMockMode = (val: boolean) => {
-    setIsMockMode(val);
-    localStorage.setItem('maatram_mock_mode', String(val));
-  };
-
-  // Helper: Seed mock user data for standalone client test if API is down
-  const getMockUsers = (): User[] => {
-    const existing = localStorage.getItem('mock_db_users');
-    if (existing) return JSON.parse(existing);
-
-    // Seed mock database
-    const seed: User[] = [
-      {
-        id: 'admin-1',
-        name: 'Maatram Admin Office',
-        email: 'admin@gmail.com',
-        role: 'admin',
-        isVerified: true,
-        profile: {
-          avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150',
-          cover: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800',
-          bio: 'Administrative operations office of Maatram Foundation. Managing scholarships and alumni activities.',
-          skills: ['Management', 'Public Policy', 'Social Welfare'],
-          department: 'Foundation Board',
-          batch: 'Founders',
-          company: 'Maatram Foundation',
-          jobTitle: 'Chief Coordinator',
-          gender: 'Female',
-          education: 'Master of Social Work',
-          college: 'Madras School of Social Work',
-          socialLinks: { linkedin: '#', github: '#', twitter: '#', website: 'https://maatramfoundation.org' },
-          experience: []
-        },
-        connections: ['alumni-1', 'student-1'],
-        savedPosts: [],
-        reposts: []
-      },
-      {
-        id: 'alumni-1',
-        name: 'Arjun Ramachandran',
-        email: 'arjun@gmail.com',
-        role: 'alumni',
-        isVerified: true,
-        profile: {
-          avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150',
-          cover: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800',
-          bio: 'Software Engineer at Google. Proud Maatram Scholar batch of 2019. Keen on mentoring and guiding juniors.',
-          skills: ['React', 'TypeScript', 'Node.js', 'System Design'],
-          department: 'Computer Science',
-          batch: '2015-2019',
-          company: 'Google',
-          jobTitle: 'Software Engineer II',
-          gender: 'Male',
-          education: 'B.E. Computer Science',
-          college: 'College of Engineering, Guindy',
-          socialLinks: { linkedin: '#', github: '#', twitter: '#', website: '#' },
-          experience: [
-            {
-              _id: 'exp_1',
-              title: 'Software Engineer II',
-              company: 'Google',
-              location: 'Mountain View, CA',
-              startDate: '2022-03',
-              endDate: '',
-              current: true,
-              description: 'Working in Core Systems division on high-scale indexing service pipelines.'
-            },
-            {
-              _id: 'exp_2',
-              title: 'Software Engineer',
-              company: 'Cognizant',
-              location: 'Chennai, India',
-              startDate: '2019-06',
-              endDate: '2022-02',
-              current: false,
-              description: 'Built enterprise web apps using React, Angular, and Node.js for retail sector clients.'
-            }
-          ]
-        },
-        connections: ['student-1', 'admin-1'],
-        savedPosts: [],
-        reposts: []
-      },
-      {
-        id: 'alumni-2',
-        name: 'Priya Narayanan',
-        email: 'priya@gmail.com',
-        role: 'alumni',
-        isVerified: true,
-        profile: {
-          avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
-          cover: 'https://images.unsplash.com/photo-1620641788421-7a1c342ea42e?w=800',
-          bio: 'Lead Product Designer shaping the next generation of fintech applications at TechNova. Mentoring students.',
-          skills: ['UI/UX Design', 'Framer Motion', 'Figma', 'Prototyping'],
-          department: 'Information Technology',
-          batch: '2016-2020',
-          company: 'TechNova',
-          jobTitle: 'Lead Product Designer',
-          gender: 'Female',
-          education: 'B.Des Product Design',
-          college: 'National Institute of Design',
-          socialLinks: { linkedin: '#', github: '#', twitter: '#', website: '#' },
-          experience: [
-            {
-              _id: 'exp_3',
-              title: 'Lead Product Designer',
-              company: 'TechNova',
-              location: 'Bangalore, India',
-              startDate: '2021-08',
-              endDate: '',
-              current: true,
-              description: 'Leading visual redesign of flagship mobile banking applications.'
-            },
-            {
-              _id: 'exp_4',
-              title: 'UI/UX Designer',
-              company: 'Zoho',
-              location: 'Chennai, India',
-              startDate: '2020-07',
-              endDate: '2021-07',
-              current: false,
-              description: 'Created wireframes, interactive prototypes, and design systems.'
-            }
-          ]
-        },
-        connections: [],
-        savedPosts: [],
-        reposts: []
-      },
-      {
-        id: 'student-1',
-        name: 'Siddharth Kumar',
-        email: 'siddharth@gmail.com',
-        role: 'student',
-        isVerified: true,
-        profile: {
-          avatar: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=150',
-          cover: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800',
-          bio: 'Undergraduate student seeking web development opportunities. Passionate about software engineering.',
-          skills: ['JavaScript', 'HTML/CSS', 'Python'],
-          department: 'Computer Science',
-          batch: '2023-2027',
-          company: 'College Student',
-          jobTitle: 'Intern',
-          gender: 'Male',
-          education: 'B.Tech Information Technology',
-          college: 'Madras Institute of Technology',
-          socialLinks: { linkedin: '#', github: '#', twitter: '#', website: '#' },
-          experience: [
-            {
-              _id: 'exp_5',
-              title: 'Web Developer Intern',
-              company: 'StartupGen',
-              location: 'Remote',
-              startDate: '2024-12',
-              endDate: '2025-04',
-              current: false,
-              description: 'Assisted in building responsive frontend features and API integrations.'
-            }
-          ]
-        },
-        connections: ['alumni-1', 'admin-1'],
-        savedPosts: [],
-        reposts: []
-      }
-    ];
-    localStorage.setItem('mock_db_users', JSON.stringify(seed));
-    return seed;
-  };
 
   // Login Dispatch
   const login = async (email: string, password: string, role: User['role'], secretAdminCode?: string) => {
     setLoading(true);
     try {
-      // Attempt API login first
       const res = await axios.post(`${API_URL}/auth/login`, { email, password, role, secretAdminCode });
       const { token: userToken, user: userData } = res.data;
       
       setToken(userToken);
       setUser(userData);
       setAuthToken(userToken);
-      setMockMode(false);
       localStorage.setItem('maatram_token', userToken);
       localStorage.setItem('maatram_user', JSON.stringify(userData));
 
       showNotification('Welcome back', `Logged in successfully as ${userData.name}!`, 'success');
     } catch (err: any) {
-      console.warn('API login failed, attempting mock mode check.', err);
-
-      // Check if user is logging in offline using seeded users
-      const mockUsers = getMockUsers();
-      const matched = mockUsers.find(u => u.email.toLowerCase() === email.toLowerCase() && u.role === role);
-
-      if (matched) {
-        if (role === 'admin' && secretAdminCode !== '25112006') {
-          showNotification('Access Denied', 'Invalid Secret Admin Code.', 'error');
-          setLoading(false);
-          throw new Error('Invalid Secret Admin Code');
-        }
-        
-        // Simple mock authentication success
-        const dummyToken = 'mock_jwt_token_for_' + matched.id;
-        setToken(dummyToken);
-        setUser(matched);
-        setAuthToken(dummyToken);
-        setMockMode(true);
-        localStorage.setItem('maatram_token', dummyToken);
-        localStorage.setItem('maatram_user', JSON.stringify(matched));
-
-        showNotification('Local Access Granted', `Connected locally as ${matched.name}. (Offline mode)`, 'success');
-      } else {
-        const errorMsg = err.response?.data?.message || 'Invalid credentials or connection error.';
-        showNotification('Login Failed', errorMsg, 'error');
-        setLoading(false);
-        throw err;
-      }
+      const errorMsg = err.response?.data?.message || 'Invalid credentials or connection error.';
+      showNotification('Login Failed', errorMsg, 'error');
+      setLoading(false);
+      throw err;
     } finally {
       setLoading(false);
     }
@@ -394,84 +215,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setToken(userToken);
       setUser(userData);
       setAuthToken(userToken);
-      setMockMode(false);
       localStorage.setItem('maatram_token', userToken);
       localStorage.setItem('maatram_user', JSON.stringify(userData));
 
-      if (role === 'alumni') {
-        showNotification('Registration Pending', 'Your alumni account has been registered. An admin must verify your profile before full access.', 'warning');
-      } else {
-        showNotification('Account Created', `Welcome to Maatram, ${userData.name}!`, 'success');
-      }
+      showNotification('Account Created', `Welcome to the network, ${userData.name}!`, 'success');
     } catch (err: any) {
-      console.warn('API registration failed, fallback to local storage mock signup.', err);
-
-      // Validate Gmail format in mock register
-      const gmailRegex = /^[a-zA-Z0-9._%+-]+@gmail\.com$/i;
-      if (!gmailRegex.test(email)) {
-        showNotification('Invalid Email Format', 'Please enter a valid Gmail address ending in @gmail.com.', 'error');
-        setLoading(false);
-        throw new Error('Invalid Email Format');
-      }
-
-      // Check if user already exists in mock DB
-      const mockUsers = getMockUsers();
-      if (mockUsers.some(u => u.email.toLowerCase() === email.toLowerCase().trim())) {
-        showNotification('Signup Failed', 'An account with this email already exists.', 'error');
-        setLoading(false);
-        throw new Error('Email exists');
-      }
-
-      if (role === 'admin' && secretAdminCode !== '25112006') {
-        showNotification('Access Denied', 'Invalid Secret Admin Code.', 'error');
-        setLoading(false);
-        throw new Error('Invalid Secret Admin Code');
-      }
-
-      // Create local user
-      const isVerified = role !== 'alumni';
-      const newMockUser: User = {
-        id: 'user_' + Date.now(),
-        name,
-        email: email.toLowerCase().trim(),
-        role,
-        isVerified,
-        profile: {
-          avatar: '',
-          cover: '',
-          bio: '',
-          skills: [],
-          department: '',
-          batch: '',
-          company: '',
-          jobTitle: '',
-          gender: '',
-          education: '',
-          college: '',
-          socialLinks: { linkedin: '', github: '', twitter: '', website: '' },
-          experience: []
-        },
-        connections: [],
-        savedPosts: [],
-        reposts: []
-      };
-
-      mockUsers.push(newMockUser);
-      localStorage.setItem('mock_db_users', JSON.stringify(mockUsers));
-
-      const dummyToken = 'mock_jwt_token_for_' + newMockUser.id;
-      setToken(dummyToken);
-      setUser(newMockUser);
-      setAuthToken(dummyToken);
-      setMockMode(true);
-      localStorage.setItem('maatram_token', dummyToken);
-      localStorage.setItem('maatram_user', JSON.stringify(newMockUser));
-
-      if (role === 'alumni') {
-        showNotification('Local Verification Required', 'Alumni registration successful. (Offline mode: Toggle verification in Admin Panel)', 'warning');
-      } else {
-        showNotification('Account Created', `Welcome to Maatram, ${newMockUser.name}! (Offline mode)`, 'success');
-      }
+      const errorMsg = err.response?.data?.message || 'Registration failed.';
+      showNotification('Signup Failed', errorMsg, 'error');
+      throw err;
     } finally {
       setLoading(false);
     }
@@ -484,52 +235,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setAuthToken(null);
     localStorage.removeItem('maatram_token');
     localStorage.removeItem('maatram_user');
-    showNotification('Logged Out', 'You have been safely signed out.', 'success');
   };
 
   // Update User Profile
   const updateProfile = async (profileData: Partial<UserProfile>): Promise<User> => {
     if (!user) throw new Error('Not authenticated');
 
-    if (isMockMode) {
-      const updatedUser: User = {
-        ...user,
-        profile: {
-          ...user.profile,
-          ...profileData,
-          skills: profileData.skills !== undefined ? (
-            Array.isArray(profileData.skills) 
-              ? profileData.skills 
-              : String(profileData.skills).split(',').map(s => s.trim()).filter(Boolean)
-          ) : user.profile.skills
-        }
-      };
-
-      setUser(updatedUser);
-      localStorage.setItem('maatram_user', JSON.stringify(updatedUser));
-
-      // Update mock db list
-      const mockUsers = getMockUsers();
-      const index = mockUsers.findIndex(u => u.id === user.id);
-      if (index > -1) {
-        mockUsers[index] = updatedUser;
-        localStorage.setItem('mock_db_users', JSON.stringify(mockUsers));
-      }
-
+    try {
+      const res = await axios.put(`${API_URL}/users/profile`, profileData);
+      setUser(res.data);
+      localStorage.setItem('maatram_user', JSON.stringify(res.data));
       showNotification('Profile Updated', 'Your profile details have been saved successfully.', 'success');
-      return updatedUser;
-    } else {
-      try {
-        const res = await axios.put(`${API_URL}/users/profile`, profileData);
-        setUser(res.data);
-        localStorage.setItem('maatram_user', JSON.stringify(res.data));
-        showNotification('Profile Updated', 'Your profile details have been saved successfully.', 'success');
-        return res.data;
-      } catch (err: any) {
-        const errorMsg = err.response?.data?.message || 'Error updating profile details.';
-        showNotification('Error', errorMsg, 'error');
-        throw err;
-      }
+      return res.data;
+    } catch (err: any) {
+      const errorMsg = err.response?.data?.message || 'Error updating profile details.';
+      showNotification('Error', errorMsg, 'error');
+      throw err;
     }
   };
 
@@ -537,47 +258,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const toggleConnect = async (targetUserId: string): Promise<boolean> => {
     if (!user) return false;
 
-    if (isMockMode) {
-      const mockUsers = getMockUsers();
-      const currentIdx = mockUsers.findIndex(u => u.id === user.id);
-      const targetIdx = mockUsers.findIndex(u => u.id === targetUserId);
-
-      if (currentIdx === -1 || targetIdx === -1) return false;
-
-      const currentUser = mockUsers[currentIdx];
-      const targetUser = mockUsers[targetIdx];
-
-      const isConnected = currentUser.connections.includes(targetUserId);
-      let updatedConnected = false;
-
-      if (isConnected) {
-        currentUser.connections = currentUser.connections.filter(id => id !== targetUserId);
-        targetUser.connections = targetUser.connections.filter(id => id !== user.id);
-        updatedConnected = false;
-        showNotification('Disconnected', `You removed connection with ${targetUser.name}.`, 'info');
-      } else {
-        currentUser.connections.push(targetUserId);
-        targetUser.connections.push(user.id);
-        updatedConnected = true;
-        showNotification('Connected', `You are now connected with ${targetUser.name}!`, 'success');
-      }
-
-      // Save states
-      setUser({ ...currentUser });
-      localStorage.setItem('maatram_user', JSON.stringify(currentUser));
-      localStorage.setItem('mock_db_users', JSON.stringify(mockUsers));
-
-      return updatedConnected;
-    } else {
-      try {
-        const res = await axios.post(`${API_URL}/users/connect/${targetUserId}`);
-        // Refresh local user to sync connections
-        await refreshUser();
-        return res.data.connected;
-      } catch (err) {
-        console.error('Error connecting:', err);
-        return false;
-      }
+    try {
+      const res = await axios.post(`${API_URL}/users/connect/${targetUserId}`);
+      // Refresh local user to sync connections
+      await refreshUser();
+      return res.data.connected;
+    } catch (err) {
+      console.error('Error connecting:', err);
+      return false;
     }
   };
 
@@ -585,39 +273,23 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const toggleSavePost = async (postId: string): Promise<boolean> => {
     if (!user) return false;
 
-    if (isMockMode) {
-      const mockUsers = getMockUsers();
-      const currentIdx = mockUsers.findIndex(u => u.id === user.id);
-      if (currentIdx === -1) return false;
+    // Optimistic Update
+    const isSavedAlready = user.savedPosts?.includes(postId);
+    const newSavedPosts = isSavedAlready
+      ? user.savedPosts?.filter(id => id !== postId)
+      : [...(user.savedPosts || []), postId];
+    
+    setUser({ ...user, savedPosts: newSavedPosts });
 
-      const currentUser = mockUsers[currentIdx];
-      const savedIdx = currentUser.savedPosts.indexOf(postId);
-      let saved = false;
-
-      if (savedIdx > -1) {
-        currentUser.savedPosts.splice(savedIdx, 1);
-        saved = false;
-        showNotification('Post Unsaved', 'Post removed from your bookmarks.', 'info');
-      } else {
-        currentUser.savedPosts.push(postId);
-        saved = true;
-        showNotification('Post Saved', 'Post added to your saved list.', 'success');
-      }
-
-      setUser({ ...currentUser });
-      localStorage.setItem('maatram_user', JSON.stringify(currentUser));
-      localStorage.setItem('mock_db_users', JSON.stringify(mockUsers));
-
-      return saved;
-    } else {
-      try {
-        const res = await axios.post(`${API_URL}/posts/save/${postId}`);
-        await refreshUser();
-        return res.data.saved;
-      } catch (err) {
-        console.error('Error saving post:', err);
-        return false;
-      }
+    try {
+      const res = await axios.post(`${API_URL}/posts/save/${postId}`);
+      refreshUser(); // Background sync
+      return res.data.saved;
+    } catch (err) {
+      console.error('Error saving post:', err);
+      // Revert optimistic update by re-syncing from server
+      refreshUser();
+      return false;
     }
   };
 
@@ -625,13 +297,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const refreshUser = async () => {
     const storedToken = localStorage.getItem('maatram_token');
     if (!storedToken) return;
-    if (isMockMode) {
-      const storedUser = localStorage.getItem('maatram_user');
-      if (storedUser) {
-        setUser(JSON.parse(storedUser));
-      }
-      return;
-    }
 
     try {
       const res = await axios.get(`${API_URL}/auth/me`);
@@ -648,15 +313,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         user,
         token,
         loading,
-        isMockMode,
         login,
         register,
         logout,
         updateProfile,
         toggleConnect,
         toggleSavePost,
-        refreshUser,
-        setMockMode
+        refreshUser
       }}
     >
       {children}

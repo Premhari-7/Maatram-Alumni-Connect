@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
 import { TreeAnimation } from '../components/TreeAnimation';
-import { FiMail, FiLock, FiUser, FiEye, FiEyeOff, FiChevronDown, FiShield, FiHeart } from 'react-icons/fi';
+import { FiMail, FiLock, FiUser, FiEye, FiEyeOff, FiChevronDown, FiShield, FiHeart, FiLoader } from 'react-icons/fi';
 import confetti from 'canvas-confetti';
 
 interface Particle {
@@ -19,7 +19,7 @@ interface Particle {
 }
 
 export const AuthPage = () => {
-  const { login, register } = useAuth();
+  const { login, register, loading } = useAuth();
   const { showNotification } = useNotification();
   const navigate = useNavigate();
 
@@ -34,7 +34,6 @@ export const AuthPage = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [secretAdminCode, setSecretAdminCode] = useState('');
-
   // Mini-Branding particle states
   const [authParticles, setAuthParticles] = useState<Particle[]>([]);
   const [showAuthCelebration, setShowAuthCelebration] = useState(false);
@@ -130,25 +129,28 @@ export const AuthPage = () => {
     try {
       if (isLogin) {
         await login(email, password, role, role === 'admin' ? secretAdminCode : undefined);
+        
+        // Successful auth trigger
+        setIsLoggedIn(true);
+
+        // Trigger Confetti
+        confetti({
+          particleCount: 100,
+          spread: 70,
+          origin: { y: 0.6 },
+          colors: ['#ffd700', '#ffffff', '#ffaa00']
+        });
+
+        // Let animation play for 1.2s before navigating
+        setTimeout(() => {
+          navigate('/dashboard');
+        }, 1200);
       } else {
         await register(name, email, password, role, role === 'admin' ? secretAdminCode : undefined);
+        
+        // Switch to login tab, don't auto-login
+        setIsLogin(true);
       }
-
-      // Successful auth trigger
-      setIsLoggedIn(true);
-
-      // Trigger Confetti
-      confetti({
-        particleCount: 100,
-        spread: 70,
-        origin: { y: 0.6 },
-        colors: ['#ffd700', '#ffffff', '#ffaa00']
-      });
-
-      // Let animation play for 1.2s before navigating
-      setTimeout(() => {
-        navigate('/dashboard');
-      }, 1200);
 
     } catch (err: any) {
       console.error('Authentication error:', err);
@@ -409,19 +411,31 @@ export const AuthPage = () => {
               </div>
             )}
 
+
+
             {/* Submit Button */}
             <button
               type="submit"
+              disabled={loading}
               className="btn-primary"
               style={{
                 width: '100%',
                 padding: '12px',
                 fontSize: '15px',
                 justifyContent: 'center',
-                marginTop: '10px'
+                marginTop: '10px',
+                opacity: loading ? 0.7 : 1,
+                cursor: loading ? 'not-allowed' : 'pointer'
               }}
             >
-              {isLogin ? 'Login' : 'Register'}
+              {loading ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <FiLoader style={{ animation: 'spin 1s linear infinite' }} />
+                  {isLogin ? 'Authenticating...' : 'Registering...'}
+                </div>
+              ) : (
+                isLogin ? 'Login' : 'Register'
+              )}
             </button>
           </form>
 

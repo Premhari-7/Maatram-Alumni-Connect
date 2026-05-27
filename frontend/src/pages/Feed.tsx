@@ -2,10 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth, API_URL, DEFAULT_AVATAR } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
-import { FiUsers, FiPlus, FiHeart, FiMessageSquare, FiSend, FiBookmark, FiTrash2, FiShare2, FiCopy, FiLinkedin, FiTwitter, FiX, FiSearch, FiEdit3, FiCheck } from 'react-icons/fi';
+import { FiUsers, FiPlus, FiHeart, FiMessageSquare, FiSend, FiBookmark, FiTrash2, FiShare2, FiCopy, FiLinkedin, FiTwitter, FiX, FiSearch, FiEdit3, FiCheck, FiThumbsUp, FiAward, FiSmile, FiSun, FiPlay, FiStar } from 'react-icons/fi';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
 import { UserProfilePopup } from '../components/UserProfilePopup';
+import { MediaModal } from '../components/MediaModal';
 
 interface Reply {
   _id: string;
@@ -50,16 +51,33 @@ interface Post {
   caption: string;
   image: string;
   likes: any[];
+  reactions?: {
+    user: { _id: string; name?: string } | string;
+    type: string;
+  }[];
   comments: Comment[];
   sharesCount: number;
   createdAt: string;
 }
 
+const reactionConfig: Record<string, { icon: any, color: string, label: string }> = {
+  like: { icon: FiThumbsUp, color: '#3b82f6', label: 'Like' },
+  celebrate: { icon: FiAward, color: '#22c55e', label: 'Celebrate' },
+  support: { icon: FiStar, color: '#a855f7', label: 'Support' },
+  love: { icon: FiHeart, color: '#ef4444', label: 'Love' },
+  insightful: { icon: FiSun, color: '#eab308', label: 'Insightful' },
+  funny: { icon: FiSmile, color: '#f97316', label: 'Funny' },
+};
+
 export const Feed = () => {
-  const { user, token, isMockMode, toggleSavePost } = useAuth();
+  const { user, token, toggleSavePost, refreshUser } = useAuth();
+  const isMockMode = false;
   const { showNotification } = useNotification();
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const [hoveredPostIdForReactions, setHoveredPostIdForReactions] = useState<string | null>(null);
+  const hoverTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // New Post Form
   const [isPostModalOpen, setIsPostModalOpen] = useState(false);
@@ -81,10 +99,11 @@ export const Feed = () => {
   const [postToDelete, setPostToDelete] = useState<string | null>(null);
   const [selectedPreviewUserId, setSelectedPreviewUserId] = useState<string | null>(null);
   const [activePostOptions, setActivePostOptions] = useState<Post | null>(null);
+  const [selectedMedia, setSelectedMedia] = useState<{ url: string; type: 'image' | 'video' } | null>(null);
 
   // React useEffect Scroll Lock
   useEffect(() => {
-    const isAnyModalOpen = isPostModalOpen || showPostConfirm || showSuccessModal || (sharingPost !== null) || (postToDelete !== null) || (selectedPreviewUserId !== null) || (activePostOptions !== null);
+    const isAnyModalOpen = isPostModalOpen || showPostConfirm || showSuccessModal || (sharingPost !== null) || (postToDelete !== null) || (selectedPreviewUserId !== null) || (activePostOptions !== null) || (selectedMedia !== null);
     if (isAnyModalOpen) {
       document.body.style.overflow = 'hidden';
     } else {
@@ -93,7 +112,7 @@ export const Feed = () => {
     return () => {
       document.body.style.overflow = '';
     };
-  }, [isPostModalOpen, showPostConfirm, showSuccessModal, sharingPost, postToDelete, selectedPreviewUserId, activePostOptions]);
+  }, [isPostModalOpen, showPostConfirm, showSuccessModal, sharingPost, postToDelete, selectedPreviewUserId, activePostOptions, selectedMedia]);
 
   // Comments
   const [activeCommentsPostId, setActiveCommentsPostId] = useState<string | null>(null);
@@ -128,7 +147,7 @@ export const Feed = () => {
 
   const handlePostCardContextMenu = (e: React.MouseEvent, postId: string) => {
     e.preventDefault();
-    handleLike(postId);
+    handleReaction(postId, 'like');
     showNotification('Liked!', 'Post like toggled.', 'success');
   };
 
@@ -213,14 +232,33 @@ export const Feed = () => {
     fetchFeed();
   }, [isMockMode]);
 
-  const handleLike = async (postId: string) => {
+  const handleReaction = async (postId: string, reactionType: string) => {
     if (!user) return;
+    const userId = user.id || (user as any)._id;
     if (isMockMode) {
       const updated = posts.map(p => {
         if (p._id === postId) {
-          const liked = p.likes.includes(user.id);
-          const likesList = liked ? p.likes.filter(id => id !== user.id) : [...p.likes, user.id];
-          return { ...p, likes: likesList };
+          let updatedReactions = [...(p.reactions || [])];
+          let updatedLikes = [...p.likes];
+          const reactIdx = updatedReactions.findIndex(r => (typeof r.user === 'object' ? r.user._id === userId : r.user === userId));
+          const likeIdx = updatedLikes.indexOf(userId);
+
+          if (reactIdx > -1) {
+            if (updatedReactions[reactIdx].type === reactionType) {
+              // Remove
+              updatedReactions.splice(reactIdx, 1);
+              if (likeIdx > -1) updatedLikes.splice(likeIdx, 1);
+            } else {
+              // Change
+              updatedReactions[reactIdx].type = reactionType;
+              if (likeIdx === -1) updatedLikes.push(userId);
+            }
+          } else {
+            // New
+            updatedReactions.push({ user: { _id: userId }, type: reactionType });
+            if (likeIdx === -1) updatedLikes.push(userId);
+          }
+          return { ...p, reactions: updatedReactions, likes: updatedLikes };
         }
         return p;
       });
@@ -228,12 +266,15 @@ export const Feed = () => {
       localStorage.setItem('mock_db_posts', JSON.stringify(updated));
     } else {
       try {
-        const res = await axios.post(`${API_URL}/posts/like/${postId}`);
-        setPosts(prev => prev.map(p => p._id === postId ? { ...p, likes: res.data.likes } : p));
+        const res = await axios.post(`${API_URL}/posts/react/${postId}`, { type: reactionType }, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        setPosts(prev => prev.map(p => p._id === postId ? res.data : p));
       } catch (err) {
-        console.error('Error liking:', err);
+        console.error('Error reacting:', err);
       }
     }
+    setHoveredPostIdForReactions(null);
   };
 
   const handleCreatePost = (e: React.FormEvent) => {
@@ -327,54 +368,67 @@ export const Feed = () => {
         setShowSuccessModal(true);
       }
     } else {
-      setIsUploading(true);
-      setUploadProgress(0);
-      try {
-        if (editingPostId) {
-          const res = await axios.put(
-            `${API_URL}/posts/${editingPostId}`,
-            { caption, image: mediaPreview },
-            {
-              headers: { Authorization: `Bearer ${token}` }
-            }
-          );
-          setPosts(prev => prev.map(p => p._id === editingPostId ? res.data : p));
-          setCaption('');
-          setMediaFile(null);
-          setMediaPreview('');
-          setEditingPostId(null);
-          setIsPostModalOpen(false);
-          showNotification('Post Updated', 'Your post has been successfully updated.', 'success');
-        } else {
-          const res = await axios.post(
-            `${API_URL}/posts`,
-            { caption, image: mediaPreview },
-            {
-              headers: { Authorization: `Bearer ${token}` },
-              onUploadProgress: (progressEvent) => {
-                const total = progressEvent.total || (progressEvent as any).bytesTotal || 0;
-                if (total > 0) {
-                  const current = progressEvent.loaded;
-                  const percent = Math.round((current * 100) / total);
-                  setUploadProgress(percent);
-                }
-              }
-            }
-          );
-          setPosts(prev => [res.data, ...prev]);
-          setCaption('');
-          setMediaFile(null);
-          setMediaPreview('');
-          setIsPostModalOpen(false);
-          setShowSuccessModal(true);
+      setIsPostModalOpen(false);
+      setEditingPostId(null);
+      setCaption('');
+      setMediaFile(null);
+      setMediaPreview('');
+      showNotification('Uploading...', 'Your post is being processed in the background.', 'success');
+
+      if (editingPostId) {
+        const formData = new FormData();
+        formData.append('caption', caption);
+        if (mediaFile) {
+          formData.append('mediaFile', mediaFile);
         }
-      } catch (err: any) {
-        console.error('Failed to save post:', err);
-        const errMsg = err.response?.data?.message || err.message || 'Failed to save post';
-        showNotification('Error', errMsg, 'error');
-      } finally {
-        setIsUploading(false);
-        setUploadProgress(null);
+
+        axios.put(
+          `${API_URL}/posts/${editingPostId}`,
+          formData,
+          {
+            headers: { 
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'multipart/form-data'
+            }
+          }
+        ).then(res => {
+          setPosts(prev => prev.map(p => p._id === editingPostId ? res.data : p));
+          showNotification('Post Updated', 'Your post has been successfully updated.', 'success');
+        }).catch(err => {
+          console.error('Failed to save post:', err);
+          const errMsg = err.response?.data?.message || err.message || 'Failed to save post';
+          showNotification('Error', errMsg, 'error');
+        }).finally(() => {
+          setIsUploading(false);
+          setUploadProgress(null);
+        });
+      } else {
+        const formData = new FormData();
+        formData.append('caption', caption);
+        if (mediaFile) {
+          formData.append('mediaFile', mediaFile);
+        }
+
+        axios.post(
+          `${API_URL}/posts`,
+          formData,
+          {
+            headers: { 
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'multipart/form-data'
+            }
+          }
+        ).then(res => {
+          setPosts(prev => [res.data, ...prev]);
+          setShowSuccessModal(true);
+        }).catch(err => {
+          console.error('Failed to save post:', err);
+          const errMsg = err.response?.data?.message || err.message || 'Failed to save post';
+          showNotification('Error', errMsg, 'error');
+        }).finally(() => {
+          setIsUploading(false);
+          setUploadProgress(null);
+        });
       }
     }
   };
@@ -546,15 +600,40 @@ export const Feed = () => {
       });
       setPosts(updated);
       localStorage.setItem('mock_db_posts', JSON.stringify(updated));
+      
+      const mockUsers = JSON.parse(localStorage.getItem('mock_db_users') || '[]');
+      const userIdx = mockUsers.findIndex((u: any) => u.id === user?.id);
+      if (userIdx > -1) {
+        mockUsers[userIdx].reposts = [...(mockUsers[userIdx].reposts || []), postId];
+        localStorage.setItem('mock_db_users', JSON.stringify(mockUsers));
+      }
+      
       showNotification('Post Reposted', 'Post shared to your connections.', 'success');
     } else {
-      try {
-        const res = await axios.post(`${API_URL}/posts/share/${postId}`);
+      const repostedAlready = user?.reposts?.includes(postId);
+      setPosts(prev => prev.map(p => p._id === postId ? {
+        ...p,
+        sharesCount: Math.max(0, p.sharesCount + (repostedAlready ? -1 : 1))
+      } : p));
+
+      axios.post(`${API_URL}/posts/repost/${postId}`, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      }).then(res => {
         setPosts(prev => prev.map(p => p._id === postId ? { ...p, sharesCount: res.data.sharesCount } : p));
-        showNotification('Post Reposted', 'Post shared to your connections.', 'success');
-      } catch (err) {
+        refreshUser();
+        showNotification(
+          res.data.reposted ? 'Post Reposted' : 'Repost Removed',
+          res.data.reposted ? 'Post added to your reposts.' : 'Post removed from your reposts.',
+          'success'
+        );
+      }).catch(err => {
+        // Revert on error
+        setPosts(prev => prev.map(p => p._id === postId ? {
+          ...p,
+          sharesCount: Math.max(0, p.sharesCount + (!repostedAlready ? -1 : 1))
+        } : p));
         console.error('Error sharing:', err);
-      }
+      });
     }
   };
 
@@ -678,10 +757,7 @@ export const Feed = () => {
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', fontSize: '12px' }}>
               {[
                 { id: 'all', label: 'All Updates' },
-                { id: 'my', label: 'My Posts' },
-                { id: 'alumni', label: 'Alumni Updates' },
-                { id: 'student', label: 'Scholar Posts' },
-                { id: 'opportunities', label: 'Opportunities' }
+                { id: 'my', label: 'My Posts' }
               ].map(pill => {
                 const isActive = activeFilter === pill.id;
                 return (
@@ -727,7 +803,12 @@ export const Feed = () => {
             </div>
           ) : (
             filteredPosts.map(post => {
-              const isLiked = user ? post.likes.includes(user.id) || post.likes.includes((user as any)._id) : false;
+              const userId = user?.id || (user as any)?._id;
+              const isLiked = user ? post.likes.includes(userId) : false;
+              const userReaction = post.reactions?.find(r => (typeof r.user === 'object' ? r.user._id === userId : r.user === userId))?.type;
+              const mockUsers = isMockMode ? JSON.parse(localStorage.getItem('mock_db_users') || '[]') : [];
+              const currMockUser = mockUsers.find((u:any) => u.id === userId);
+              const isReposted = isMockMode ? (currMockUser?.reposts?.includes(post._id)) : (user?.reposts?.includes(post._id));
               const isSaved = user?.savedPosts?.includes(post._id) || false;
               const authorMeta = post.author.profile?.company ? `${post.author.role === 'alumni' ? 'Alumni' : 'Student'} - ${post.author.profile.company}` : `${post.author.role === 'alumni' ? 'Alumni' : 'Student'}`;
               const batchMeta = post.author.profile?.batch ? ` (${post.author.profile.batch})` : '';
@@ -826,19 +907,47 @@ export const Feed = () => {
                   </p>
 
                   {post.image && (
-                    <div style={{
-                      borderRadius: '10px',
-                      overflow: 'hidden',
-                      maxHeight: '340px',
-                      border: '1px solid var(--color-border-glass)',
-                      background: '#000000'
-                    }}>
+                    <div 
+                      onClick={() => {
+                        const isVideo = post.image.startsWith('data:video/') || post.image.match(/\.(mp4|webm|ogg|mov)($|\?)/i);
+                        setSelectedMedia({ url: post.image, type: isVideo ? 'video' : 'image' });
+                      }}
+                      style={{
+                        borderRadius: '10px',
+                        overflow: 'hidden',
+                        maxHeight: '340px',
+                        border: '1px solid var(--color-border-glass)',
+                        background: '#000000',
+                        cursor: 'pointer',
+                        position: 'relative'
+                      }}
+                    >
                       {post.image.startsWith('data:video/') || post.image.match(/\.(mp4|webm|ogg|mov)($|\?)/i) ? (
-                        <video
-                          src={post.image}
-                          controls
-                          style={{ width: '100%', maxHeight: '340px', objectFit: 'contain', display: 'block' }}
-                        />
+                        <>
+                          <video
+                            src={post.image}
+                            style={{ width: '100%', maxHeight: '340px', objectFit: 'contain', display: 'block', pointerEvents: 'none' }}
+                            muted
+                          />
+                          <div style={{
+                            position: 'absolute',
+                            top: '50%',
+                            left: '50%',
+                            transform: 'translate(-50%, -50%)',
+                            width: '48px',
+                            height: '48px',
+                            borderRadius: '50%',
+                            background: 'rgba(0,0,0,0.6)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: '#fff',
+                            backdropFilter: 'blur(4px)',
+                            border: '1px solid rgba(255,255,255,0.2)'
+                          }}>
+                            <FiPlay size={24} style={{ marginLeft: '4px' }} />
+                          </div>
+                        </>
                       ) : (
                         <img
                           src={post.image}
@@ -857,38 +966,162 @@ export const Feed = () => {
                     borderBottom: '1px solid var(--color-border-glass)',
                     paddingBottom: '10px'
                   }}>
-                    <span>{post.likes.length} Likes</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      {post.reactions && post.reactions.length > 0 ? (
+                        <>
+                          <div style={{ display: 'flex' }}>
+                            {Array.from(new Set(post.reactions.map(r => r.type))).slice(0, 3).map((type, i) => {
+                              const config = reactionConfig[type];
+                              if (!config) return null;
+                              const Icon = config.icon;
+                              return (
+                                <div key={type} style={{
+                                  width: '18px', height: '18px', borderRadius: '50%',
+                                  background: config.color, color: '#000',
+                                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                  marginLeft: i > 0 ? '-6px' : '0', border: '1px solid rgba(0,0,0,0.8)', zIndex: 3 - i
+                                }}>
+                                  <Icon size={10} />
+                                </div>
+                              );
+                            })}
+                          </div>
+                          <span>
+                            {post.reactions.length > 0 && (
+                              post.reactions.length === 1 ? (
+                                <>Liked by <span style={{ color: '#fff', fontWeight: 600 }}>{typeof post.reactions[0].user === 'object' ? (post.reactions[0].user as any).name : 'Someone'}</span></>
+                              ) : (
+                                <>Liked by <span style={{ color: '#fff', fontWeight: 600 }}>{typeof post.reactions[0].user === 'object' ? (post.reactions[0].user as any).name : 'Someone'}</span> and {post.reactions.length - 1} other{post.reactions.length - 1 === 1 ? '' : 's'}</>
+                              )
+                            )}
+                          </span>
+                        </>
+                      ) : (
+                        <span>{post.likes.length} Likes</span>
+                      )}
+                    </div>
                     <div style={{ display: 'flex', gap: '12px' }}>
                       <span>{post.comments.length} Comments</span>
-                      <span>{post.sharesCount} Reposts</span>
+                      
                     </div>
                   </div>
 
                   <div style={{
                     display: 'flex',
                     justifyContent: 'space-between',
-                    alignItems: 'center'
+                    alignItems: 'center',
+                    position: 'relative'
                   }}>
-                    <button
-                      onClick={() => handleLike(post._id)}
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        color: isLiked ? 'var(--color-yellow-primary)' : 'var(--color-text-gray)',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '6px',
-                        fontSize: '13px',
-                        fontWeight: 500
+                    {/* Reaction Button with Hover Popup */}
+                    <div 
+                      style={{ position: 'relative' }}
+                      onMouseEnter={() => {
+                        if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+                        hoverTimeoutRef.current = setTimeout(() => setHoveredPostIdForReactions(post._id), 300);
+                      }}
+                      onMouseLeave={() => {
+                        if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+                        hoverTimeoutRef.current = setTimeout(() => setHoveredPostIdForReactions(null), 300);
+                      }}
+                      onTouchStart={() => {
+                        if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+                        hoverTimeoutRef.current = setTimeout(() => setHoveredPostIdForReactions(post._id), 400);
+                      }}
+                      onTouchEnd={() => {
+                        if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+                      }}
+                      onTouchCancel={() => {
+                        if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+                        setHoveredPostIdForReactions(null);
                       }}
                     >
-                      <FiHeart fill={isLiked ? 'var(--color-yellow-primary)' : 'none'} size={18} />
-                      <span>Like</span>
-                    </button>
+                      <AnimatePresence>
+                        {hoveredPostIdForReactions === post._id && (
+                          <motion.div
+                            initial={{ opacity: 0, y: 10, scale: 0.9 }}
+                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                            exit={{ opacity: 0, y: 10, scale: 0.9 }}
+                            transition={{ duration: 0.15 }}
+                            style={{
+                              position: 'absolute',
+                              bottom: '100%',
+                              left: 0,
+                              paddingBottom: '12px',
+                              zIndex: 50
+                            }}
+                          >
+                            <div style={{
+                              background: 'rgba(15, 15, 15, 0.95)',
+                              border: '1px solid rgba(255, 215, 0, 0.3)',
+                              padding: '8px 16px',
+                              borderRadius: '30px',
+                              display: 'flex',
+                              gap: '16px',
+                              boxShadow: '0 10px 30px rgba(0,0,0,0.8)',
+                              backdropFilter: 'blur(10px)'
+                            }}>
+                              {Object.entries(reactionConfig).map(([type, config]) => {
+                                const Icon = config.icon;
+                                return (
+                                  <button
+                                    key={type}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleReaction(post._id, type);
+                                    }}
+                                    title={config.label}
+                                    style={{
+                                      background: 'none', border: 'none', cursor: 'pointer',
+                                      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px',
+                                      transition: 'transform 0.2s',
+                                      padding: 0
+                                    }}
+                                    onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.25)'}
+                                    onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                                  >
+                                    <div style={{
+                                      width: '38px', height: '38px', borderRadius: '50%',
+                                      background: `${config.color}15`,
+                                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                      color: config.color,
+                                      border: `1px solid ${config.color}40`
+                                    }}>
+                                      <Icon size={20} fill={type === 'love' || type === 'support' || type === 'like' ? config.color : 'none'} />
+                                    </div>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleReaction(post._id, userReaction || 'like');
+                        }}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: userReaction ? reactionConfig[userReaction].color : 'var(--color-text-gray)',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          fontSize: '13px',
+                          fontWeight: 500
+                        }}
+                      >
+                        {userReaction ? React.createElement(reactionConfig[userReaction].icon, { fill: userReaction === 'love' || userReaction === 'like' || userReaction === 'support' ? reactionConfig[userReaction].color : 'none', size: 18 }) : <FiThumbsUp size={18} />}
+                        <span>{userReaction ? reactionConfig[userReaction].label : 'Like'}</span>
+                      </button>
+                    </div>
 
                     <button
-                      onClick={() => setActiveCommentsPostId(activeCommentsPostId === post._id ? null : post._id)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setActiveCommentsPostId(activeCommentsPostId === post._id ? null : post._id);
+                      }}
                       style={{
                         background: 'none',
                         border: 'none',
@@ -903,24 +1136,6 @@ export const Feed = () => {
                     >
                       <FiMessageSquare size={18} />
                       <span>Comment</span>
-                    </button>
-
-                    <button
-                      onClick={() => setSharingPost(post)}
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        color: 'var(--color-text-gray)',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '6px',
-                        fontSize: '13px',
-                        fontWeight: 500
-                      }}
-                    >
-                      <FiShare2 size={18} />
-                      <span>Repost</span>
                     </button>
 
                     <button
@@ -1446,166 +1661,7 @@ export const Feed = () => {
         )}
       </AnimatePresence>
 
-      {/* Centered Glassmorphic External Share Dialog */}
-      <AnimatePresence>
-        {sharingPost && (
-          <div 
-            className="notification-overlay" 
-            style={{ zIndex: 10020 }} 
-            onClick={() => setSharingPost(null)}
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="glass-panel"
-              style={{
-                width: '90%',
-                maxWidth: '420px',
-                padding: '28px 24px',
-                textAlign: 'center',
-                border: '1px solid var(--color-yellow-primary)',
-                boxShadow: '0 20px 50px rgba(0, 0, 0, 0.8)',
-                background: 'rgba(10, 10, 10, 0.95)'
-              }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                <h3 style={{ fontSize: '18px', fontWeight: 800, color: '#ffffff', fontFamily: 'var(--font-title)', margin: 0 }}>
-                  Share Opportunity
-                </h3>
-                <button
-                  onClick={() => setSharingPost(null)}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: 'var(--color-text-muted)',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    padding: '4px'
-                  }}
-                  onMouseEnter={(e) => e.currentTarget.style.color = '#ffffff'}
-                  onMouseLeave={(e) => e.currentTarget.style.color = 'var(--color-text-muted)'}
-                >
-                  <FiX size={20} />
-                </button>
-              </div>
-
-              <p style={{ fontSize: '13px', color: 'var(--color-text-gray)', lineHeight: '1.6', marginBottom: '24px', textAlign: 'left' }}>
-                Choose how you want to share this update to expand its reach.
-              </p>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                {/* Option 1: Repost Internally */}
-                <button
-                  onClick={() => {
-                    handleShare(sharingPost._id);
-                    setSharingPost(null);
-                  }}
-                  className="btn-primary"
-                  style={{
-                    justifyContent: 'center',
-                    gap: '10px',
-                    padding: '12px',
-                    fontSize: '14px',
-                    width: '100%'
-                  }}
-                >
-                  <FiShare2 size={16} /> Repost Internally
-                </button>
-
-                {/* Option 2: Share on LinkedIn */}
-                <button
-                  onClick={() => {
-                    const text = `${sharingPost.author.name} shared an update on Maatram Alumni Connect: "${sharingPost.caption.substring(0, 120)}..."`;
-                    const url = `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent('https://maatramfoundation.org')}&text=${encodeURIComponent(text)}`;
-                    window.open(url, '_blank', 'width=600,height=600,noopener,noreferrer');
-                    setSharingPost(null);
-                    showNotification('Success', 'LinkedIn sharing window opened.', 'success');
-                  }}
-                  className="btn-outline"
-                  style={{
-                    justifyContent: 'center',
-                    gap: '10px',
-                    padding: '12px',
-                    fontSize: '14px',
-                    borderColor: '#0077b5',
-                    color: '#0077b5',
-                    background: 'rgba(0, 119, 181, 0.05)',
-                    width: '100%'
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = '#0077b5';
-                    e.currentTarget.style.color = '#ffffff';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = 'rgba(0, 119, 181, 0.05)';
-                    e.currentTarget.style.color = '#0077b5';
-                  }}
-                >
-                  <FiLinkedin size={16} /> Share on LinkedIn
-                </button>
-
-                {/* Option 3: Share on Twitter / X */}
-                <button
-                  onClick={() => {
-                    const text = `${sharingPost.author.name} on Maatram Alumni Connect: "${sharingPost.caption.substring(0, 140)}..."`;
-                    const url = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent('https://maatramfoundation.org')}`;
-                    window.open(url, '_blank', 'width=600,height=600,noopener,noreferrer');
-                    setSharingPost(null);
-                    showNotification('Success', 'Twitter sharing window opened.', 'success');
-                  }}
-                  className="btn-outline"
-                  style={{
-                    justifyContent: 'center',
-                    gap: '10px',
-                    padding: '12px',
-                    fontSize: '14px',
-                    borderColor: '#1da1f2',
-                    color: '#1da1f2',
-                    background: 'rgba(29, 161, 242, 0.05)',
-                    width: '100%'
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = '#1da1f2';
-                    e.currentTarget.style.color = '#ffffff';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = 'rgba(29, 161, 242, 0.05)';
-                    e.currentTarget.style.color = '#1da1f2';
-                  }}
-                >
-                  <FiTwitter size={16} /> Share on Twitter / X
-                </button>
-
-                {/* Option 4: Copy Link */}
-                <button
-                  onClick={() => {
-                    navigator.clipboard.writeText(`https://maatramfoundation.org/posts/${sharingPost._id}`);
-                    showNotification('Link Copied', 'Post link copied to clipboard.', 'success');
-                    setSharingPost(null);
-                  }}
-                  className="btn-outline"
-                  style={{
-                    justifyContent: 'center',
-                    gap: '10px',
-                    padding: '12px',
-                    fontSize: '14px',
-                    borderColor: 'rgba(255, 255, 255, 0.15)',
-                    color: '#ffffff',
-                    width: '100%'
-                  }}
-                >
-                  <FiCopy size={16} /> Copy Link
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
+      {/* External Share Dialog Removed */}
       {/* Delete Post Confirmation Modal */}
       <AnimatePresence>
         {postToDelete && (
@@ -1698,7 +1754,9 @@ export const Feed = () => {
               className="glass-panel"
               style={{
                 width: '100%',
-                maxWidth: '400px',
+                maxWidth: '650px',
+                maxHeight: '90vh',
+                overflowY: 'auto',
                 padding: '24px',
                 borderColor: 'rgba(255,215,0,0.2)',
                 display: 'flex',
@@ -1707,9 +1765,27 @@ export const Feed = () => {
               }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--color-border-glass)', paddingBottom: '12px' }}>
-                <h3 style={{ fontSize: '16px', fontWeight: 700, color: '#ffffff', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  Post Options
-                </h3>
+                <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                  <img
+                    src={activePostOptions.author.profile?.avatar || DEFAULT_AVATAR}
+                    alt={activePostOptions.author.name}
+                    style={{
+                      width: '42px',
+                      height: '42px',
+                      borderRadius: '50%',
+                      objectFit: 'cover',
+                      border: '1.5px solid var(--color-yellow-primary)'
+                    }}
+                  />
+                  <div>
+                    <h3 style={{ fontSize: '16px', fontWeight: 700, color: '#ffffff' }}>
+                      {activePostOptions.author.name}
+                    </h3>
+                    <span style={{ fontSize: '12px', color: 'var(--color-text-gray)' }}>
+                      {activePostOptions.author.role}
+                    </span>
+                  </div>
+                </div>
                 <button 
                   onClick={() => setActivePostOptions(null)}
                   style={{ background: 'none', border: 'none', color: 'var(--color-text-gray)', cursor: 'pointer' }}
@@ -1718,25 +1794,48 @@ export const Feed = () => {
                 </button>
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <div style={{ fontSize: '15px', color: '#e0e0e0', lineHeight: '1.6', whiteSpace: 'pre-wrap' }}>
+                {activePostOptions.caption}
+              </div>
+
+              {activePostOptions.image && (
+                <div style={{ borderRadius: '10px', overflow: 'hidden', background: '#000' }}>
+                  {activePostOptions.image.startsWith('data:video/') || activePostOptions.image.match(/\.(mp4|webm|ogg|mov)($|\?)/i) ? (
+                    <video
+                      src={activePostOptions.image}
+                      controls
+                      style={{ width: '100%', maxHeight: '60vh', objectFit: 'contain', display: 'block' }}
+                    />
+                  ) : (
+                    <img
+                      src={activePostOptions.image}
+                      alt="Post Media"
+                      style={{ width: '100%', maxHeight: '60vh', objectFit: 'contain', display: 'block' }}
+                    />
+                  )}
+                </div>
+              )}
+
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', borderTop: '1px solid var(--color-border-glass)', paddingTop: '16px' }}>
                 {/* Like Option */}
                 <button
                   onClick={() => {
-                    handleLike(activePostOptions._id);
+                    handleReaction(activePostOptions._id, 'like');
                     setActivePostOptions(null);
                   }}
                   className="btn-outline"
                   style={{
-                    justifyContent: 'flex-start',
-                    gap: '12px',
-                    padding: '12px 16px',
-                    fontSize: '14px',
+                    flex: '1 1 calc(50% - 5px)',
+                    justifyContent: 'center',
+                    gap: '8px',
+                    padding: '10px 16px',
+                    fontSize: '13px',
                     borderColor: activePostOptions.likes.includes(user?.id || (user as any)?._id) ? 'var(--color-yellow-primary)' : 'rgba(255,255,255,0.08)',
                     color: activePostOptions.likes.includes(user?.id || (user as any)?._id) ? 'var(--color-yellow-primary)' : '#ffffff'
                   }}
                 >
-                  <FiHeart fill={activePostOptions.likes.includes(user?.id || (user as any)?._id) ? 'var(--color-yellow-primary)' : 'none'} size={18} />
-                  {activePostOptions.likes.includes(user?.id || (user as any)?._id) ? 'Unlike Post' : 'Like Post'}
+                  <FiHeart fill={activePostOptions.likes.includes(user?.id || (user as any)?._id) ? 'var(--color-yellow-primary)' : 'none'} size={16} />
+                  {activePostOptions.likes.includes(user?.id || (user as any)?._id) ? 'Unlike' : 'Like'}
                 </button>
 
                 {/* Comment Option */}
@@ -1747,39 +1846,22 @@ export const Feed = () => {
                   }}
                   className="btn-outline"
                   style={{
-                    justifyContent: 'flex-start',
-                    gap: '12px',
-                    padding: '12px 16px',
-                    fontSize: '14px',
+                    flex: '1 1 calc(50% - 5px)',
+                    justifyContent: 'center',
+                    gap: '8px',
+                    padding: '10px 16px',
+                    fontSize: '13px',
                     borderColor: 'rgba(255,255,255,0.08)',
                     color: '#ffffff'
                   }}
                 >
-                  <FiMessageSquare size={18} />
-                  Comment on Post
+                  <FiMessageSquare size={16} />
+                  Comment
                 </button>
 
-                {/* Repost Option */}
-                <button
-                  onClick={() => {
-                    setSharingPost(activePostOptions);
-                    setActivePostOptions(null);
-                  }}
-                  className="btn-outline"
-                  style={{
-                    justifyContent: 'flex-start',
-                    gap: '12px',
-                    padding: '12px 16px',
-                    fontSize: '14px',
-                    borderColor: 'rgba(255,255,255,0.08)',
-                    color: '#ffffff'
-                  }}
-                >
-                  <FiShare2 size={18} />
-                  Repost / Share
-                </button>
+                
 
-                {/* Save/Bookmark Option */}
+                {/* Save Option */}
                 <button
                   onClick={() => {
                     toggleSavePost(activePostOptions._id);
@@ -1787,44 +1869,30 @@ export const Feed = () => {
                   }}
                   className="btn-outline"
                   style={{
-                    justifyContent: 'flex-start',
-                    gap: '12px',
-                    padding: '12px 16px',
-                    fontSize: '14px',
+                    flex: '1 1 calc(50% - 5px)',
+                    justifyContent: 'center',
+                    gap: '8px',
+                    padding: '10px 16px',
+                    fontSize: '13px',
                     borderColor: user?.savedPosts?.includes(activePostOptions._id) ? 'var(--color-yellow-primary)' : 'rgba(255,255,255,0.08)',
                     color: user?.savedPosts?.includes(activePostOptions._id) ? 'var(--color-yellow-primary)' : '#ffffff'
                   }}
                 >
-                  <FiBookmark fill={user?.savedPosts?.includes(activePostOptions._id) ? 'var(--color-yellow-primary)' : 'none'} size={18} />
-                  {user?.savedPosts?.includes(activePostOptions._id) ? 'Remove from Saved' : 'Save / Bookmark'}
-                </button>
-
-                {/* Copy Link Option */}
-                <button
-                  onClick={() => {
-                    const shareUrl = `${window.location.origin}/dashboard/feed?post=${activePostOptions._id}`;
-                    navigator.clipboard.writeText(shareUrl);
-                    showNotification('Success', 'Post link copied to clipboard!', 'success');
-                    setActivePostOptions(null);
-                  }}
-                  className="btn-outline"
-                  style={{
-                    justifyContent: 'flex-start',
-                    gap: '12px',
-                    padding: '12px 16px',
-                    fontSize: '14px',
-                    borderColor: 'rgba(255,255,255,0.08)',
-                    color: '#ffffff'
-                  }}
-                >
-                  <FiCopy size={18} />
-                  Copy Post Link
+                  <FiBookmark fill={user?.savedPosts?.includes(activePostOptions._id) ? 'var(--color-yellow-primary)' : 'none'} size={16} />
+                  {user?.savedPosts?.includes(activePostOptions._id) ? 'Saved' : 'Save'}
                 </button>
               </div>
             </motion.div>
           </div>
         )}
       </AnimatePresence>
+
+      <MediaModal 
+        isOpen={!!selectedMedia} 
+        onClose={() => setSelectedMedia(null)} 
+        mediaUrl={selectedMedia?.url || ''} 
+        mediaType={selectedMedia?.type || 'image'} 
+      />
 
       <style>{`
         @media (max-width: 900px) {

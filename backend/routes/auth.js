@@ -16,6 +16,8 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({ message: 'Please enter all required fields' });
     }
 
+
+
     const gmailRegex = /^[a-zA-Z0-9._%+-]+@gmail\.com$/i;
     if (!gmailRegex.test(email)) {
       return res.status(400).json({ message: 'Email must be a valid Gmail address (ending with @gmail.com)' });
@@ -47,15 +49,14 @@ router.post('/register', async (req, res) => {
       name,
       email: normalizedEmail,
       password: hashedPassword,
-      role,
-      isVerified: role !== 'alumni' // alumni requires admin verification
+      role
     });
 
     await newUser.save();
 
     // Sign JWT
     const token = jwt.sign(
-      { id: newUser._id, email: newUser.email, role: newUser.role, isVerified: newUser.isVerified },
+      { id: newUser._id, email: newUser.email, role: newUser.role },
       JWT_SECRET,
       { expiresIn: '7d' }
     );
@@ -67,13 +68,13 @@ router.post('/register', async (req, res) => {
         name: newUser.name,
         email: newUser.email,
         role: newUser.role,
-        isVerified: newUser.isVerified,
         profile: newUser.profile
       }
     });
 
   } catch (error) {
     console.error('Registration Error:', error);
+
     res.status(500).json({ message: 'Server error during registration' });
   }
 });
@@ -104,7 +105,7 @@ router.post('/login', async (req, res) => {
     // Check user exists
     const user = await User.findOne({ email: normalizedEmail });
     if (!user) {
-      return res.status(400).json({ message: 'Invalid credentials' });
+      return res.status(400).json({ message: 'User does not exist. Please register first.' });
     }
 
     // Validate role matches
@@ -115,13 +116,14 @@ router.post('/login', async (req, res) => {
     // Compare password
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
-      return res.status(400).json({ message: 'Invalid credentials' });
+      return res.status(400).json({ message: 'Incorrect password.' });
     }
 
-    // Check verification status (Optional blocking or flag in token. Let's let them login, but if they are an alumni and not verified, we can flag it so they see a "pending verification" message or screen in frontend)
+
+
     // Generating token
     const token = jwt.sign(
-      { id: user._id, email: user.email, role: user.role, isVerified: user.isVerified },
+      { id: user._id, email: user.email, role: user.role },
       JWT_SECRET,
       { expiresIn: '7d' }
     );
@@ -133,7 +135,6 @@ router.post('/login', async (req, res) => {
         name: user.name,
         email: user.email,
         role: user.role,
-        isVerified: user.isVerified,
         profile: user.profile
       }
     });

@@ -4,7 +4,8 @@ import { useNotification } from '../context/NotificationContext';
 import { 
   FiSave, FiUser, FiInfo, FiSliders, FiImage, FiBriefcase, 
   FiBookmark, FiHeart, FiMessageSquare, FiShare2, FiLock, FiUnlock, FiX, FiCheckCircle,
-  FiEdit3, FiTrash2
+  FiEdit3, FiTrash2,
+  FiThumbsUp, FiAward, FiStar, FiSun, FiSmile
 } from 'react-icons/fi';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -58,6 +59,7 @@ interface Post {
   caption: string;
   image?: string;
   likes: any[];
+  reactions?: { user: any, type: string }[];
   comments: Comment[];
   sharesCount: number;
   createdAt: string;
@@ -89,8 +91,19 @@ const DEPARTMENTS_LIST = [
   "English & Applied Literature"
 ];
 
+
+const reactionConfig: Record<string, { icon: any, color: string, label: string }> = {
+  like: { icon: FiThumbsUp, color: '#3b82f6', label: 'Like' },
+  celebrate: { icon: FiAward, color: '#22c55e', label: 'Celebrate' },
+  support: { icon: FiStar, color: '#a855f7', label: 'Support' },
+  love: { icon: FiHeart, color: '#ef4444', label: 'Love' },
+  insightful: { icon: FiSun, color: '#eab308', label: 'Insightful' },
+  funny: { icon: FiSmile, color: '#f97316', label: 'Funny' },
+};
+
 export const Settings = () => {
-  const { user, token, isMockMode, refreshUser, toggleSavePost } = useAuth();
+  const { user, token, refreshUser, toggleSavePost } = useAuth();
+  const isMockMode = import.meta.env.VITE_MOCK_MODE === 'true';
   const { showNotification } = useNotification();
 
   const [activeTab, setActiveTab] = useState<'basics' | 'saved' | 'privacy' | 'experience'>('basics');
@@ -133,6 +146,8 @@ export const Settings = () => {
   const [replyText, setReplyText] = useState('');
   const [showWhoLikedPostId, setShowWhoLikedPostId] = useState<string | null>(null);
   const [selectedPreviewUserId, setSelectedPreviewUserId] = useState<string | null>(null);
+  const [hoveredPostIdForReactions, setHoveredPostIdForReactions] = useState<string | null>(null);
+  const hoverTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Upload Progress Tracking
   const [avatarProgress, setAvatarProgress] = useState<number | null>(null);
@@ -213,8 +228,8 @@ export const Settings = () => {
     }
   };
 
-  // Like saved post
-  const handleLike = async (postId: string) => {
+  // React to saved post
+  const handleReact = async (postId: string, reactionType: string) => {
     if (!user) return;
     const userId = user.id || (user as any)._id;
     if (isMockMode) {
@@ -223,23 +238,47 @@ export const Settings = () => {
         const allPosts = JSON.parse(mockPostsStr) as any[];
         const updated = allPosts.map(p => {
           if (p._id === postId) {
-            const liked = p.likes.includes(userId);
-            const likesList = liked ? p.likes.filter((id: string) => id !== userId) : [...p.likes, userId];
-            return { ...p, likes: likesList };
+            let updatedReactions = [...(p.reactions || [])];
+            let updatedLikes = [...p.likes];
+            const reactIdx = updatedReactions.findIndex(r => (typeof r.user === 'object' ? r.user._id === userId : r.user === userId));
+            const likeIdx = updatedLikes.indexOf(userId);
+
+            if (reactIdx > -1) {
+              if (updatedReactions[reactIdx].type === reactionType) {
+                updatedReactions.splice(reactIdx, 1);
+                if (likeIdx > -1) updatedLikes.splice(likeIdx, 1);
+              } else {
+                updatedReactions[reactIdx].type = reactionType;
+                if (likeIdx === -1) updatedLikes.push(userId);
+              }
+            } else {
+              updatedReactions.push({ user: { _id: userId }, type: reactionType });
+              if (likeIdx === -1) updatedLikes.push(userId);
+            }
+            return { ...p, reactions: updatedReactions, likes: updatedLikes };
           }
           return p;
         });
         localStorage.setItem('mock_db_posts', JSON.stringify(updated));
-        setSavedPosts(prev => prev.map(p => p._id === postId ? { ...p, likes: updated.find(up => up._id === postId).likes } : p));
+        setSavedPosts(prev => prev.map(p => {
+          if (p._id === postId) {
+            const up = updated.find(up => up._id === postId);
+            return { ...p, reactions: up.reactions, likes: up.likes };
+          }
+          return p;
+        }));
       }
     } else {
       try {
-        const res = await axios.post(`${API_URL}/posts/like/${postId}`);
-        setSavedPosts(prev => prev.map(p => p._id === postId ? { ...p, likes: res.data.likes } : p));
+        const res = await axios.post(`${API_URL}/posts/react/${postId}`, { type: reactionType }, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        setSavedPosts(prev => prev.map(p => p._id === postId ? res.data : p));
       } catch (err) {
-        console.error('Error liking post:', err);
+        console.error('Error reacting to post:', err);
       }
     }
+    setHoveredPostIdForReactions(null);
   };
 
   // Comment on saved post
@@ -780,7 +819,7 @@ export const Settings = () => {
     } else {
       // Add new
       const newExp = {
-        _id: 'exp_' + Date.now(),
+        _id: 'temp_' + Date.now(),
         title: expTitle,
         company: expCompany,
         location: expLocation,
@@ -792,12 +831,14 @@ export const Settings = () => {
       updatedExperiences.push(newExp);
     }
 
+    setExperiences(updatedExperiences);
     await persistExperiences(updatedExperiences);
     resetExpForm();
   };
 
   const handleDeleteExperience = async (expId: string) => {
     const updatedExperiences = experiences.filter(exp => (exp._id !== expId && exp.id !== expId));
+    setExperiences(updatedExperiences);
     await persistExperiences(updatedExperiences);
   };
 
@@ -828,7 +869,18 @@ export const Settings = () => {
       }
     } else {
       try {
-        await axios.put(`${API_URL}/users/profile`, { experience: updatedExpList }, {
+        const payloadList = updatedExpList.map(exp => {
+          const cleanExp = { ...exp };
+          if (cleanExp._id && (String(cleanExp._id).startsWith('temp_') || String(cleanExp._id).startsWith('exp_'))) {
+            delete cleanExp._id;
+          }
+          if (cleanExp.id && (String(cleanExp.id).startsWith('temp_') || String(cleanExp.id).startsWith('exp_'))) {
+            delete cleanExp.id;
+          }
+          return cleanExp;
+        });
+        
+        await axios.put(`${API_URL}/users/profile`, { experience: payloadList }, {
           headers: { Authorization: `Bearer ${token}` }
         });
         showNotification('Experience Saved', 'Work experience successfully saved to server.', 'success');
@@ -951,7 +1003,7 @@ export const Settings = () => {
           }}
         >
           <FiBookmark size={16} />
-          Saved Posts ({user?.savedPosts?.length || 0})
+          Saved Posts ({savedPosts.length})
         </button>
 
         <button
@@ -1497,15 +1549,49 @@ export const Settings = () => {
                         borderBottom: '1px solid var(--color-border-glass)',
                         paddingBottom: '10px'
                       }}>
-                        <span 
-                          onClick={() => setShowWhoLikedPostId(post._id)}
-                          style={{ cursor: 'pointer', transition: 'color 0.2s' }}
-                          onMouseEnter={(e) => e.currentTarget.style.color = 'var(--color-yellow-primary)'}
-                          onMouseLeave={(e) => e.currentTarget.style.color = 'var(--color-text-muted)'}
-                        >
-                          {post.likes.length} {post.likes.length === 1 ? 'Like' : 'Likes'}
-                        </span>
-                        <span>{post.comments.length} Comments</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          {post.reactions && post.reactions.length > 0 ? (
+                            <>
+                              <div style={{ display: 'flex' }}>
+                                {Array.from(new Set(post.reactions.map(r => r.type))).slice(0, 3).map((type, i) => {
+                                  const config = reactionConfig[type];
+                                  if (!config) return null;
+                                  const Icon = config.icon;
+                                  return (
+                                    <div key={type} style={{
+                                      width: '18px', height: '18px', borderRadius: '50%',
+                                      background: config.color, color: '#000',
+                                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                      marginLeft: i > 0 ? '-6px' : '0', border: '1px solid rgba(0,0,0,0.8)', zIndex: 3 - i
+                                    }}>
+                                      <Icon size={10} />
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                              <span 
+                                onClick={() => setShowWhoLikedPostId(post._id)}
+                                style={{ cursor: 'pointer', transition: 'color 0.2s' }}
+                                onMouseEnter={(e) => e.currentTarget.style.color = 'var(--color-yellow-primary)'}
+                                onMouseLeave={(e) => e.currentTarget.style.color = 'var(--color-text-muted)'}
+                              >
+                                {post.reactions.length} {post.reactions.length === 1 ? 'Reaction' : 'Reactions'}
+                              </span>
+                            </>
+                          ) : (
+                            <span 
+                              onClick={() => setShowWhoLikedPostId(post._id)}
+                              style={{ cursor: 'pointer', transition: 'color 0.2s' }}
+                              onMouseEnter={(e) => e.currentTarget.style.color = 'var(--color-yellow-primary)'}
+                              onMouseLeave={(e) => e.currentTarget.style.color = 'var(--color-text-muted)'}
+                            >
+                              {post.likes.length} Likes
+                            </span>
+                          )}
+                        </div>
+                        <div style={{ display: 'flex', gap: '12px' }}>
+                          <span>{post.comments.length} Comments</span>
+                        </div>
                       </div>
 
                       {/* Actions */}
@@ -1513,25 +1599,118 @@ export const Settings = () => {
                         display: 'flex',
                         justifyContent: 'space-between',
                         alignItems: 'center',
+                        position: 'relative',
                         padding: '4px 0'
                       }}>
-                        <button
-                          onClick={() => handleLike(post._id)}
-                          style={{
-                            background: 'none',
-                            border: 'none',
-                            color: isLiked ? 'var(--color-yellow-primary)' : 'var(--color-text-gray)',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '6px',
-                            fontSize: '13px',
-                            fontWeight: 500
+                        <div 
+                          style={{ position: 'relative' }}
+                          onMouseEnter={() => {
+                            if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+                            hoverTimeoutRef.current = setTimeout(() => setHoveredPostIdForReactions(post._id), 300);
+                          }}
+                          onMouseLeave={() => {
+                            if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+                            hoverTimeoutRef.current = setTimeout(() => setHoveredPostIdForReactions(null), 300);
                           }}
                         >
-                          <FiHeart fill={isLiked ? 'var(--color-yellow-primary)' : 'none'} size={18} />
-                          <span>Like</span>
-                        </button>
+                          <AnimatePresence>
+                            {hoveredPostIdForReactions === post._id && (
+                              <motion.div
+                                initial={{ opacity: 0, y: 10, scale: 0.9 }}
+                                animate={{ opacity: 1, y: 0, scale: 1 }}
+                                exit={{ opacity: 0, y: 10, scale: 0.9 }}
+                                transition={{ duration: 0.15 }}
+                                style={{
+                                  position: 'absolute',
+                                  bottom: '100%',
+                                  left: 0,
+                                  paddingBottom: '12px',
+                                  zIndex: 50
+                                }}
+                              >
+                                <div style={{
+                                  background: 'rgba(15, 15, 15, 0.95)',
+                                  border: '1px solid rgba(255, 215, 0, 0.3)',
+                                  padding: '8px 16px',
+                                  borderRadius: '30px',
+                                  display: 'flex',
+                                  gap: '16px',
+                                  boxShadow: '0 10px 30px rgba(0,0,0,0.8)',
+                                  backdropFilter: 'blur(10px)'
+                                }}>
+                                  {Object.entries(reactionConfig).map(([type, config]) => {
+                                    const Icon = config.icon;
+                                    return (
+                                      <button
+                                        key={type}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleReact(post._id, type);
+                                        }}
+                                        title={config.label}
+                                        style={{
+                                          background: 'none', border: 'none', cursor: 'pointer',
+                                          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px',
+                                          transition: 'transform 0.2s',
+                                          padding: 0
+                                        }}
+                                        onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.25)'}
+                                        onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                                      >
+                                        <div style={{
+                                          width: '38px', height: '38px', borderRadius: '50%',
+                                          background: `${config.color}15`,
+                                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                          color: config.color,
+                                          border: `1px solid ${config.color}40`
+                                        }}>
+                                          <Icon size={20} fill={type === 'love' || type === 'support' || type === 'like' ? config.color : 'none'} />
+                                        </div>
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const userReaction = post.reactions?.find(r => (typeof r.user === 'object' ? r.user._id === user?.id : r.user === user?.id))?.type;
+                              handleReact(post._id, userReaction || 'like');
+                            }}
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              color: (() => {
+                                const userReaction = post.reactions?.find(r => (typeof r.user === 'object' ? r.user._id === user?.id : r.user === user?.id))?.type;
+                                return userReaction ? reactionConfig[userReaction].color : 'var(--color-text-gray)';
+                              })(),
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '6px',
+                              fontSize: '13px',
+                              fontWeight: 500,
+                              padding: '4px 8px',
+                              borderRadius: '4px',
+                              transition: 'all 0.2s'
+                            }}
+                            onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)'}
+                            onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
+                          >
+                            {(() => {
+                              const userReaction = post.reactions?.find(r => (typeof r.user === 'object' ? r.user._id === user?.id : r.user === user?.id))?.type;
+                              return userReaction ? React.createElement(reactionConfig[userReaction].icon, { fill: userReaction === 'love' || userReaction === 'like' || userReaction === 'support' ? reactionConfig[userReaction].color : 'none', size: 18 }) : <FiThumbsUp size={18} />;
+                            })()}
+                            <span>
+                              {(() => {
+                                const userReaction = post.reactions?.find(r => (typeof r.user === 'object' ? r.user._id === user?.id : r.user === user?.id))?.type;
+                                return userReaction ? reactionConfig[userReaction].label : 'Like';
+                              })()}
+                            </span>
+                          </button>
+                        </div>
 
                         <button
                           onClick={() => setActiveCommentsPostId(activeCommentsPostId === post._id ? null : post._id)}
@@ -1963,7 +2142,23 @@ export const Settings = () => {
                   ) : (
                     experiences.map((exp, idx) => {
                       const expId = exp._id || exp.id;
-                      const dateRange = `${exp.startDate ? new Date(exp.startDate).toLocaleDateString([], { year: 'numeric', month: 'short' }) : ''} - ${exp.current ? 'Present' : exp.endDate ? new Date(exp.endDate).toLocaleDateString([], { year: 'numeric', month: 'short' }) : ''}`;
+                      let startDateStr = '';
+                      let endDateStr = '';
+                      try {
+                        startDateStr = exp.startDate && !isNaN(new Date(exp.startDate).getTime()) 
+                          ? new Date(exp.startDate).toLocaleDateString([], { year: 'numeric', month: 'short' }) 
+                          : exp.startDate || '';
+                      } catch (e) { startDateStr = exp.startDate; }
+
+                      try {
+                        endDateStr = exp.current 
+                          ? 'Present' 
+                          : (exp.endDate && !isNaN(new Date(exp.endDate).getTime()) 
+                              ? new Date(exp.endDate).toLocaleDateString([], { year: 'numeric', month: 'short' }) 
+                              : exp.endDate || '');
+                      } catch (e) { endDateStr = exp.endDate; }
+
+                      const dateRange = `${startDateStr} - ${endDateStr}`;
 
                       return (
                         <div

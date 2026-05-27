@@ -29,10 +29,11 @@ export const FloatingCapLogo = ({ size = 38 }: FloatingCapLogoProps) => {
           ry={size * 0.08}
           fill="rgba(255, 215, 0, 0.15)"
           animate={{
-            rx: [size * 0.47, size * 0.37, size * 0.47],
+            scaleX: [1, 0.78, 1],
             opacity: [0.3, 0.15, 0.3]
           }}
           transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
+          style={{ transformOrigin: 'center' }}
         />
       </motion.svg>
 

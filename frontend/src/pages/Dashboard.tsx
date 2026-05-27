@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth, API_URL, DEFAULT_AVATAR } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
 import { TreeAnimation } from '../components/TreeAnimation';
-import { FiUsers, FiFileText, FiCalendar, FiAward, FiPlus, FiHeart, FiMessageSquare, FiSend, FiBookmark, FiTrash2, FiShare2, FiCopy, FiLinkedin, FiTwitter, FiX, FiSearch, FiEdit3, FiCheck, FiThumbsUp, FiSmile, FiRepeat } from 'react-icons/fi';
+import { FiUsers, FiFileText, FiCalendar, FiAward, FiPlus, FiHeart, FiMessageSquare, FiSend, FiBookmark, FiTrash2, FiShare2, FiCopy, FiLinkedin, FiTwitter, FiX, FiSearch, FiEdit3, FiCheck, FiThumbsUp, FiSmile, FiRepeat, FiSun, FiStar } from 'react-icons/fi';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
 import { UserProfilePopup } from '../components/UserProfilePopup';
@@ -49,7 +49,7 @@ interface Reaction {
       avatar: string;
     };
   } | string;
-  type: 'like' | 'funny' | 'celebrate';
+  type: string;
 }
 
 interface Post {
@@ -73,11 +73,22 @@ interface Post {
   createdAt: string;
 }
 
+const reactionConfig: Record<string, { icon: any, color: string, label: string }> = {
+  like: { icon: FiThumbsUp, color: '#3b82f6', label: 'Like' },
+  celebrate: { icon: FiAward, color: '#22c55e', label: 'Celebrate' },
+  support: { icon: FiStar, color: '#a855f7', label: 'Support' },
+  love: { icon: FiHeart, color: '#ef4444', label: 'Love' },
+  insightful: { icon: FiSun, color: '#eab308', label: 'Insightful' },
+  funny: { icon: FiSmile, color: '#f97316', label: 'Funny' },
+};
+
 export const Dashboard = () => {
-  const { user, token, isMockMode, toggleSavePost, refreshUser } = useAuth();
+  const { user, token, toggleSavePost, refreshUser } = useAuth();
+  const isMockMode = false;
   const { showNotification } = useNotification();
   const [posts, setPosts] = useState<Post[]>([]);
   const [loadingPosts, setLoadingPosts] = useState(true);
+  const [pendingApprovalsCount, setPendingApprovalsCount] = useState(0);
 
   // Modal create post
   const [isPostModalOpen, setIsPostModalOpen] = useState(false);
@@ -85,6 +96,7 @@ export const Dashboard = () => {
   const [mediaFile, setMediaFile] = useState<File | null>(null);
   const [mediaPreview, setMediaPreview] = useState<string>('');
   const [isUploading, setIsUploading] = useState(false);
+  const [isPublishing, setIsPublishing] = useState(false);
   const [showPostConfirm, setShowPostConfirm] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [sharingPost, setSharingPost] = useState<Post | null>(null);
@@ -137,6 +149,8 @@ export const Dashboard = () => {
   const [replyText, setReplyText] = useState('');
   const [showWhoLikedPostId, setShowWhoLikedPostId] = useState<string | null>(null);
   const [hoveredPostId, setHoveredPostId] = useState<string | null>(null);
+  const [hoveredPostIdForReactions, setHoveredPostIdForReactions] = useState<string | null>(null);
+  const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const getUserReaction = (post: Post) => {
     if (!user) return null;
@@ -317,7 +331,27 @@ export const Dashboard = () => {
 
   useEffect(() => {
     fetchPosts();
-  }, [isMockMode]);
+    
+    // Fetch pending approvals for admin notification
+    if (user?.role === 'admin') {
+      if (isMockMode) {
+        const mockUsersStr = localStorage.getItem('mock_db_users');
+        if (mockUsersStr) {
+          const allUsers = JSON.parse(mockUsersStr) as any[];
+          const pendingCount = allUsers.filter(u => (u.role === 'alumni' || u.role === 'student') && !u.isVerified).length;
+          setPendingApprovalsCount(pendingCount);
+        }
+      } else {
+        axios.get(`${API_URL}/users/admin/analytics`, {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+        .then(res => {
+          setPendingApprovalsCount(res.data.unverifiedAlumniCount || 0);
+        })
+        .catch(err => console.error('Error fetching admin analytics:', err));
+      }
+    }
+  }, [ user, token]);
 
   useEffect(() => {
     const isAnyModalOpen = isPostModalOpen || showPostConfirm || showSuccessModal || (sharingPost !== null) || (postToDelete !== null) || (selectedPreviewUserId !== null) || (activePostOptions !== null);
@@ -337,7 +371,7 @@ export const Dashboard = () => {
   };
 
   // Handle React
-  const handleReact = async (postId: string, type: 'like' | 'funny' | 'celebrate') => {
+  const handleReact = async (postId: string, type: string) => {
     if (!user) return;
     const userId = user.id || (user as any)._id;
     const userName = user.name;
@@ -508,41 +542,65 @@ export const Dashboard = () => {
         setShowSuccessModal(true);
       }
     } else {
-      try {
-        if (editingPostId) {
-          const res = await axios.put(
-            `${API_URL}/posts/${editingPostId}`,
-            { caption, image: mediaPreview },
-            {
-              headers: { Authorization: `Bearer ${token}` }
-            }
-          );
-          setPosts(prev => prev.map(p => p._id === editingPostId ? res.data : p));
-          setCaption('');
-          setMediaFile(null);
-          setMediaPreview('');
-          setEditingPostId(null);
-          setIsPostModalOpen(false);
-          showNotification('Post Updated', 'Your post has been successfully updated.', 'success');
-        } else {
-          const res = await axios.post(
-            `${API_URL}/posts`,
-            { caption, image: mediaPreview },
-            {
-              headers: { Authorization: `Bearer ${token}` }
-            }
-          );
-          setPosts(prev => [res.data, ...prev]);
-          setCaption('');
-          setMediaFile(null);
-          setMediaPreview('');
-          setIsPostModalOpen(false);
-          setShowSuccessModal(true);
+      setIsPostModalOpen(false);
+      setEditingPostId(null);
+      setCaption('');
+      setMediaFile(null);
+      setMediaPreview('');
+      showNotification('Uploading...', 'Your post is being processed in the background.', 'success');
+
+      if (editingPostId) {
+        const formData = new FormData();
+        formData.append('caption', caption);
+        if (mediaFile) {
+          formData.append('mediaFile', mediaFile);
         }
-      } catch (err: any) {
-        console.error('Failed to save post:', err);
-        const errMsg = err.response?.data?.message || err.message || 'Failed to save post';
-        showNotification('Error', errMsg, 'error');
+
+        axios.put(
+          `${API_URL}/posts/${editingPostId}`,
+          formData,
+          {
+            headers: { 
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'multipart/form-data'
+            }
+          }
+        ).then(res => {
+          setPosts(prev => prev.map(p => p._id === editingPostId ? res.data : p));
+          showNotification('Post Updated', 'Your post has been successfully updated.', 'success');
+        }).catch(err => {
+          console.error('Failed to save post:', err);
+          const errMsg = err.response?.data?.message || err.message || 'Failed to save post';
+          showNotification('Error', errMsg, 'error');
+        }).finally(() => {
+          setIsPublishing(false);
+        });
+      } else {
+        const formData = new FormData();
+        formData.append('caption', caption);
+        if (mediaFile) {
+          formData.append('mediaFile', mediaFile);
+        }
+
+        axios.post(
+          `${API_URL}/posts`,
+          formData,
+          {
+            headers: { 
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'multipart/form-data'
+            }
+          }
+        ).then(res => {
+          setPosts(prev => [res.data, ...prev]);
+          setShowSuccessModal(true);
+        }).catch(err => {
+          console.error('Failed to save post:', err);
+          const errMsg = err.response?.data?.message || err.message || 'Failed to save post';
+          showNotification('Error', errMsg, 'error');
+        }).finally(() => {
+          setIsPublishing(false);
+        });
       }
     }
   };
@@ -596,19 +654,25 @@ export const Dashboard = () => {
         );
       }
     } else {
-      try {
-        const res = await axios.post(`${API_URL}/posts/repost/${postId}`);
-        await refreshUser();
-        await fetchPosts();
+      const repostedAlready = user?.reposts?.includes(postId);
+      setPosts(prev => prev.map(p => p._id === postId ? {
+        ...p,
+        sharesCount: Math.max(0, p.sharesCount + (repostedAlready ? -1 : 1))
+      } : p));
+
+      axios.post(`${API_URL}/posts/repost/${postId}`).then(res => {
+        refreshUser();
+        fetchPosts();
         showNotification(
           res.data.reposted ? 'Post Reposted' : 'Repost Removed',
           res.data.reposted ? 'Post added to your reposts.' : 'Post removed from your reposts.',
           'success'
         );
-      } catch (err: any) {
+      }).catch((err: any) => {
+        fetchPosts(); // revert optimistic
         console.error('Repost error:', err);
         showNotification('Error', err.response?.data?.message || 'Failed to repost', 'error');
-      }
+      });
     }
   };
 
@@ -857,6 +921,8 @@ export const Dashboard = () => {
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
+        flexWrap: 'wrap',
+        gap: '15px',
         marginBottom: '30px'
       }}>
         <div>
@@ -887,6 +953,59 @@ export const Dashboard = () => {
           <FiPlus size={18} /> Create Post
         </button>
       </div>
+
+      {/* Admin Pending Approvals Banner */}
+      {user?.role === 'admin' && pendingApprovalsCount > 0 && (
+        <div style={{
+          background: 'rgba(255, 215, 0, 0.1)',
+          border: '1px solid var(--color-yellow-primary)',
+          borderRadius: '12px',
+          padding: '16px 20px',
+          marginBottom: '24px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{
+              background: 'var(--color-yellow-primary)',
+              color: '#000',
+              width: '36px',
+              height: '36px',
+              borderRadius: '50%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}>
+              <FiUsers size={18} />
+            </div>
+            <div>
+              <h4 style={{ fontSize: '15px', fontWeight: 700, color: 'var(--color-yellow-primary)', margin: 0 }}>
+                Pending Approvals
+              </h4>
+              <p style={{ fontSize: '13px', color: 'var(--color-text-gray)', margin: '2px 0 0 0' }}>
+                You have {pendingApprovalsCount} new account registrations awaiting verification.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => window.location.href = '/dashboard/admin'}
+            style={{
+              padding: '8px 16px',
+              background: 'var(--color-yellow-primary)',
+              color: '#000',
+              border: 'none',
+              borderRadius: '8px',
+              fontWeight: 600,
+              fontSize: '13px',
+              cursor: 'pointer',
+              transition: 'all 0.2s'
+            }}
+          >
+            Review Now
+          </button>
+        </div>
+      )}
 
       {/* Main Dashboard Layout Split */}
       <div style={{
@@ -938,9 +1057,7 @@ export const Dashboard = () => {
               {[
                 { id: 'all', label: 'All Updates' },
                 { id: 'my', label: 'My Posts' },
-                { id: 'alumni', label: 'Alumni Updates' },
-                { id: 'student', label: 'Scholar Posts' },
-                { id: 'opportunities', label: 'Opportunities' }
+                { id: 'student', label: 'Scholar Posts' }
               ].map(pill => {
                 const isActive = activeFilter === pill.id;
                 return (
@@ -987,7 +1104,9 @@ export const Dashboard = () => {
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
               {filteredPosts.map((post) => {
-                const isLiked = checkIsLiked(post.likes);
+                const userId = user?.id || (user as any)?._id;
+                const isLiked = user ? post.likes.includes(userId) : false;
+                const userReaction = post.reactions?.find(r => (typeof r.user === 'object' ? r.user._id === userId || (r.user as any).id === userId : r.user === userId))?.type;
                 const isSaved = user?.savedPosts?.includes(post._id) || false;
                 const authorMeta = post.author.profile?.company ? `${post.author.role === 'alumni' ? 'Alumni' : 'Student'} - ${post.author.profile.company}` : `${post.author.role === 'alumni' ? 'Alumni' : 'Student'}`;
                 const batchMeta = post.author.profile?.batch ? ` (${post.author.profile.batch})` : '';
@@ -1040,26 +1159,7 @@ export const Dashboard = () => {
                       
                       {/* Edit & Delete options if Admin or Creator */}
                       <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                        {/* Edit Option (Creator only) */}
-                        {(user?.id === post.author._id || (user as any)?._id === post.author._id) && (
-                          <button
-                            onClick={() => handleEditClick(post)}
-                            style={{
-                              background: 'none',
-                              border: 'none',
-                              color: 'var(--color-text-muted)',
-                              cursor: 'pointer',
-                              transition: 'color 0.2s ease',
-                              display: 'flex',
-                              alignItems: 'center'
-                            }}
-                            onMouseEnter={(e) => e.currentTarget.style.color = 'var(--color-yellow-primary)'}
-                            onMouseLeave={(e) => e.currentTarget.style.color = 'var(--color-text-muted)'}
-                          >
-                            <FiEdit3 size={15} />
-                          </button>
-                        )}
-                        
+                        {/* Edit option removed as per requirements */}
                         {/* Delete Option (Creator or Admin) */}
                         {(user?.role === 'admin' || user?.id === post.author._id || (user as any)?._id === post.author._id) && (
                           <button
@@ -1121,18 +1221,43 @@ export const Dashboard = () => {
                       borderBottom: '1px solid var(--color-border-glass)',
                       paddingBottom: '10px'
                     }}>
-                      <span 
-                        onClick={() => setShowWhoLikedPostId(post._id)}
-                        style={{ cursor: 'pointer', transition: 'color 0.2s', display: 'flex', alignItems: 'center' }}
-                        onMouseEnter={(e) => e.currentTarget.style.color = 'var(--color-yellow-primary)'}
-                        onMouseLeave={(e) => e.currentTarget.style.color = 'var(--color-text-muted)'}
-                      >
-                        {renderReactionsSummaryIcons(post)}
-                        <span>{formatReactionsSummary(post)}</span>
-                      </span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        {post.reactions && post.reactions.length > 0 ? (
+                          <>
+                            <div style={{ display: 'flex' }}>
+                              {Array.from(new Set(post.reactions.map(r => r.type))).slice(0, 3).map((type, i) => {
+                                const config = reactionConfig[type];
+                                if (!config) return null;
+                                const Icon = config.icon;
+                                return (
+                                  <div key={type} style={{
+                                    width: '18px', height: '18px', borderRadius: '50%',
+                                    background: config.color, color: '#000',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    marginLeft: i > 0 ? '-6px' : '0', border: '1px solid rgba(0,0,0,0.8)', zIndex: 3 - i
+                                  }}>
+                                    <Icon size={10} />
+                                  </div>
+                                );
+                              })}
+                            </div>
+                            <span>
+                              {post.reactions.length > 0 && (
+                                post.reactions.length === 1 ? (
+                                  <>Liked by <span style={{ color: '#fff', fontWeight: 600 }}>{typeof post.reactions[0].user === 'object' ? (post.reactions[0].user as any).name : 'Someone'}</span></>
+                                ) : (
+                                  <>Liked by <span style={{ color: '#fff', fontWeight: 600 }}>{typeof post.reactions[0].user === 'object' ? (post.reactions[0].user as any).name : 'Someone'}</span> and {post.reactions.length - 1} other{post.reactions.length - 1 === 1 ? '' : 's'}</>
+                                )
+                              )}
+                            </span>
+                          </>
+                        ) : (
+                          <span>{post.likes.length} Likes</span>
+                        )}
+                      </div>
                       <div style={{ display: 'flex', gap: '12px' }}>
                         <span>{post.comments.length} Comments</span>
-                        <span>{post.sharesCount} Reposts</span>
+                        
                       </div>
                     </div>
 
@@ -1141,65 +1266,120 @@ export const Dashboard = () => {
                       display: 'flex',
                       justifyContent: 'space-between',
                       alignItems: 'center',
+                      position: 'relative',
                       padding: '4px 0'
                     }}>
-                      {(() => {
-                        const reactionType = getUserReaction(post);
-                        return (
-                          <div
-                            onMouseEnter={() => setHoveredPostId(post._id)}
-                            onMouseLeave={() => setHoveredPostId(null)}
-                            style={{ position: 'relative' }}
-                          >
-                            {hoveredPostId === post._id && (
-                              <div className="reaction-popover">
-                                <span
-                                  className="reaction-popover-item"
-                                  onClick={() => handleReact(post._id, 'like')}
-                                  title="Like"
-                                  style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-yellow-primary)' }}
-                                >
-                                  <FiThumbsUp size={20} />
-                                </span>
-                                <span
-                                  className="reaction-popover-item"
-                                  onClick={() => handleReact(post._id, 'funny')}
-                                  title="Funny"
-                                  style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-yellow-primary)' }}
-                                >
-                                  <FiSmile size={20} />
-                                </span>
-                                <span
-                                  className="reaction-popover-item"
-                                  onClick={() => handleReact(post._id, 'celebrate')}
-                                  title="Celebrate"
-                                  style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-yellow-primary)' }}
-                                >
-                                  <FiAward size={20} />
-                                </span>
-                              </div>
-                            )}
-                            <button
-                              onClick={() => handleLike(post._id)}
+                      <div 
+                        style={{ position: 'relative' }}
+                        onMouseEnter={() => {
+                          if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+                          hoverTimeoutRef.current = setTimeout(() => setHoveredPostIdForReactions(post._id), 300);
+                        }}
+                        onMouseLeave={() => {
+                          if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+                          hoverTimeoutRef.current = setTimeout(() => setHoveredPostIdForReactions(null), 300);
+                        }}
+                        onTouchStart={() => {
+                          if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+                          hoverTimeoutRef.current = setTimeout(() => setHoveredPostIdForReactions(post._id), 400);
+                        }}
+                        onTouchEnd={() => {
+                          if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+                        }}
+                        onTouchCancel={() => {
+                          if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+                        }}
+                      >
+                        <AnimatePresence>
+                          {hoveredPostIdForReactions === post._id && (
+                            <motion.div
+                              initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                              animate={{ opacity: 1, y: 0, scale: 1 }}
+                              exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                              transition={{ duration: 0.2 }}
                               style={{
-                                background: 'none',
-                                border: 'none',
-                                color: reactionType ? 'var(--color-yellow-primary)' : 'var(--color-text-gray)',
-                                cursor: 'pointer',
+                                position: 'absolute',
+                                bottom: 'calc(100% + 5px)',
+                                left: '-10px',
+                                background: '#1a1a1a',
+                                border: '1px solid rgba(255,255,255,0.1)',
+                                borderRadius: '30px',
+                                padding: '6px 12px',
                                 display: 'flex',
-                                alignItems: 'center',
-                                gap: '6px',
-                                fontSize: '13px',
-                                fontWeight: 500,
-                                transition: 'color 0.2s ease'
+                                gap: '12px',
+                                boxShadow: '0 10px 25px rgba(0,0,0,0.5)',
+                                zIndex: 100
                               }}
                             >
-                              {renderReactionIcon(reactionType)}
-                              <span>{getReactionLabel(reactionType)}</span>
-                            </button>
-                          </div>
-                        );
-                      })()}
+                              {/* Invisible bridge to prevent mouse leave gap */}
+                              <div style={{
+                                position: 'absolute',
+                                bottom: '-15px',
+                                left: 0,
+                                right: 0,
+                                height: '15px'
+                              }} />
+                              
+                              {Object.entries(reactionConfig).map(([type, config]) => {
+                                const Icon = config.icon;
+                                return (
+                                  <button
+                                    key={type}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleReact(post._id, type);
+                                      setHoveredPostIdForReactions(null);
+                                    }}
+                                    className="reaction-icon-btn"
+                                    title={config.label}
+                                    style={{
+                                      background: 'none',
+                                      border: 'none',
+                                      cursor: 'pointer',
+                                      padding: 0,
+                                      display: 'flex',
+                                      flexDirection: 'column',
+                                      alignItems: 'center',
+                                      gap: '4px',
+                                      transition: 'transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275)'
+                                    }}
+                                  >
+                                    <div style={{
+                                      width: '38px', height: '38px', borderRadius: '50%',
+                                      background: `${config.color}15`,
+                                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                      color: config.color,
+                                      border: `1px solid ${config.color}40`
+                                    }}>
+                                      <Icon size={20} fill={type === 'love' || type === 'support' || type === 'like' ? config.color : 'none'} />
+                                    </div>
+                                  </button>
+                                );
+                              })}
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleReact(post._id, userReaction || 'like');
+                          }}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: userReaction ? reactionConfig[userReaction].color : 'var(--color-text-gray)',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            fontSize: '13px',
+                            fontWeight: 500
+                          }}
+                        >
+                          {userReaction ? React.createElement(reactionConfig[userReaction].icon, { fill: userReaction === 'love' || userReaction === 'like' || userReaction === 'support' ? reactionConfig[userReaction].color : 'none', size: 18 }) : <FiThumbsUp size={18} />}
+                          <span>{userReaction ? reactionConfig[userReaction].label : 'Like'}</span>
+                        </button>
+                      </div>
 
                       <button
                         onClick={() => setActiveCommentsPostId(activeCommentsPostId === post._id ? null : post._id)}
@@ -1235,24 +1415,6 @@ export const Dashboard = () => {
                       >
                         <FiRepeat size={18} style={{ color: user?.reposts?.includes(post._id) ? 'var(--color-yellow-primary)' : 'inherit' }} />
                         <span>Repost</span>
-                      </button>
-
-                      <button
-                        onClick={() => setSharingPost(post)}
-                        style={{
-                          background: 'none',
-                          border: 'none',
-                          color: 'var(--color-text-gray)',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                          fontSize: '13px',
-                          fontWeight: 500
-                        }}
-                      >
-                        <FiShare2 size={18} />
-                        <span>Share</span>
                       </button>
 
                       <button
@@ -1726,9 +1888,10 @@ export const Dashboard = () => {
                   <button
                     type="submit"
                     className="btn-primary"
-                    style={{ flex: 1, justifyItems: 'center', justifyContent: 'center' }}
+                    disabled={isPublishing}
+                    style={{ flex: 1, justifyItems: 'center', justifyContent: 'center', opacity: isPublishing ? 0.7 : 1, cursor: isPublishing ? 'not-allowed' : 'pointer' }}
                   >
-                    {editingPostId ? 'Save Changes' : 'Publish Post'}
+                    {isPublishing ? 'Publishing...' : (editingPostId ? 'Save Changes' : 'Publish Post')}
                   </button>
                 </div>
               </form>
@@ -1895,69 +2058,7 @@ export const Dashboard = () => {
               </p>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                {/* Option 2: Share on LinkedIn */}
-                <button
-                  onClick={() => {
-                    const text = `${sharingPost.author.name} shared an update on Maatram Alumni Connect: "${sharingPost.caption.substring(0, 120)}..."`;
-                    const url = `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent('https://maatramfoundation.org')}&text=${encodeURIComponent(text)}`;
-                    window.open(url, '_blank', 'width=600,height=600,noopener,noreferrer');
-                    setSharingPost(null);
-                    showNotification('Success', 'LinkedIn sharing window opened.', 'success');
-                  }}
-                  className="btn-outline"
-                  style={{
-                    justifyContent: 'center',
-                    gap: '10px',
-                    padding: '12px',
-                    fontSize: '14px',
-                    borderColor: '#0077b5',
-                    color: '#0077b5',
-                    background: 'rgba(0, 119, 181, 0.05)',
-                    width: '100%'
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = '#0077b5';
-                    e.currentTarget.style.color = '#ffffff';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = 'rgba(0, 119, 181, 0.05)';
-                    e.currentTarget.style.color = '#0077b5';
-                  }}
-                >
-                  <FiLinkedin size={16} /> Share on LinkedIn
-                </button>
 
-                {/* Option 3: Share on Twitter / X */}
-                <button
-                  onClick={() => {
-                    const text = `${sharingPost.author.name} on Maatram Alumni Connect: "${sharingPost.caption.substring(0, 140)}..."`;
-                    const url = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent('https://maatramfoundation.org')}`;
-                    window.open(url, '_blank', 'width=600,height=600,noopener,noreferrer');
-                    setSharingPost(null);
-                    showNotification('Success', 'Twitter sharing window opened.', 'success');
-                  }}
-                  className="btn-outline"
-                  style={{
-                    justifyContent: 'center',
-                    gap: '10px',
-                    padding: '12px',
-                    fontSize: '14px',
-                    borderColor: '#1da1f2',
-                    color: '#1da1f2',
-                    background: 'rgba(29, 161, 242, 0.05)',
-                    width: '100%'
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = '#1da1f2';
-                    e.currentTarget.style.color = '#ffffff';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = 'rgba(29, 161, 242, 0.05)';
-                    e.currentTarget.style.color = '#1da1f2';
-                  }}
-                >
-                  <FiTwitter size={16} /> Share on Twitter / X
-                </button>
 
                 {/* Option 4: Copy Link */}
                 <button
@@ -2163,7 +2264,9 @@ export const Dashboard = () => {
               className="glass-panel"
               style={{
                 width: '100%',
-                maxWidth: '400px',
+                maxWidth: '650px',
+                maxHeight: '90vh',
+                overflowY: 'auto',
                 padding: '24px',
                 borderColor: 'rgba(255,215,0,0.2)',
                 display: 'flex',
@@ -2172,9 +2275,27 @@ export const Dashboard = () => {
               }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--color-border-glass)', paddingBottom: '12px' }}>
-                <h3 style={{ fontSize: '16px', fontWeight: 700, color: '#ffffff', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  Post Options
-                </h3>
+                <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                  <img
+                    src={activePostOptions.author.profile?.avatar || DEFAULT_AVATAR}
+                    alt={activePostOptions.author.name}
+                    style={{
+                      width: '42px',
+                      height: '42px',
+                      borderRadius: '50%',
+                      objectFit: 'cover',
+                      border: '1.5px solid var(--color-yellow-primary)'
+                    }}
+                  />
+                  <div>
+                    <h3 style={{ fontSize: '16px', fontWeight: 700, color: '#ffffff' }}>
+                      {activePostOptions.author.name}
+                    </h3>
+                    <span style={{ fontSize: '12px', color: 'var(--color-text-gray)' }}>
+                      {activePostOptions.author.role}
+                    </span>
+                  </div>
+                </div>
                 <button 
                   onClick={() => setActivePostOptions(null)}
                   style={{ background: 'none', border: 'none', color: 'var(--color-text-gray)', cursor: 'pointer' }}
@@ -2183,25 +2304,48 @@ export const Dashboard = () => {
                 </button>
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <div style={{ fontSize: '15px', color: '#e0e0e0', lineHeight: '1.6', whiteSpace: 'pre-wrap' }}>
+                {activePostOptions.caption}
+              </div>
+
+              {activePostOptions.image && (
+                <div style={{ borderRadius: '10px', overflow: 'hidden', background: '#000' }}>
+                  {activePostOptions.image.startsWith('data:video/') || activePostOptions.image.match(/\.(mp4|webm|ogg|mov)($|\?)/i) ? (
+                    <video
+                      src={activePostOptions.image}
+                      controls
+                      style={{ width: '100%', maxHeight: '60vh', objectFit: 'contain', display: 'block' }}
+                    />
+                  ) : (
+                    <img
+                      src={activePostOptions.image}
+                      alt="Post Media"
+                      style={{ width: '100%', maxHeight: '60vh', objectFit: 'contain', display: 'block' }}
+                    />
+                  )}
+                </div>
+              )}
+
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', borderTop: '1px solid var(--color-border-glass)', paddingTop: '16px' }}>
                 {/* Like Option */}
                 <button
                   onClick={() => {
-                    handleLike(activePostOptions._id);
+                    handleReact(activePostOptions._id, 'like');
                     setActivePostOptions(null);
                   }}
                   className="btn-outline"
                   style={{
-                    justifyContent: 'flex-start',
-                    gap: '12px',
-                    padding: '12px 16px',
-                    fontSize: '14px',
+                    flex: '1 1 calc(50% - 5px)',
+                    justifyContent: 'center',
+                    gap: '8px',
+                    padding: '10px 16px',
+                    fontSize: '13px',
                     borderColor: activePostOptions.likes.includes(user?.id || (user as any)?._id) ? 'var(--color-yellow-primary)' : 'rgba(255,255,255,0.08)',
                     color: activePostOptions.likes.includes(user?.id || (user as any)?._id) ? 'var(--color-yellow-primary)' : '#ffffff'
                   }}
                 >
-                  <FiHeart fill={activePostOptions.likes.includes(user?.id || (user as any)?._id) ? 'var(--color-yellow-primary)' : 'none'} size={18} />
-                  {activePostOptions.likes.includes(user?.id || (user as any)?._id) ? 'Unlike Post' : 'Like Post'}
+                  <FiHeart fill={activePostOptions.likes.includes(user?.id || (user as any)?._id) ? 'var(--color-yellow-primary)' : 'none'} size={16} />
+                  {activePostOptions.likes.includes(user?.id || (user as any)?._id) ? 'Unlike' : 'Like'}
                 </button>
 
                 {/* Comment Option */}
@@ -2212,39 +2356,22 @@ export const Dashboard = () => {
                   }}
                   className="btn-outline"
                   style={{
-                    justifyContent: 'flex-start',
-                    gap: '12px',
-                    padding: '12px 16px',
-                    fontSize: '14px',
+                    flex: '1 1 calc(50% - 5px)',
+                    justifyContent: 'center',
+                    gap: '8px',
+                    padding: '10px 16px',
+                    fontSize: '13px',
                     borderColor: 'rgba(255,255,255,0.08)',
                     color: '#ffffff'
                   }}
                 >
-                  <FiMessageSquare size={18} />
-                  Comment on Post
+                  <FiMessageSquare size={16} />
+                  Comment
                 </button>
 
-                {/* Repost Option */}
-                <button
-                  onClick={() => {
-                    setSharingPost(activePostOptions);
-                    setActivePostOptions(null);
-                  }}
-                  className="btn-outline"
-                  style={{
-                    justifyContent: 'flex-start',
-                    gap: '12px',
-                    padding: '12px 16px',
-                    fontSize: '14px',
-                    borderColor: 'rgba(255,255,255,0.08)',
-                    color: '#ffffff'
-                  }}
-                >
-                  <FiShare2 size={18} />
-                  Repost / Share
-                </button>
+                
 
-                {/* Save/Bookmark Option */}
+                {/* Save Option */}
                 <button
                   onClick={() => {
                     toggleSavePost(activePostOptions._id);
@@ -2252,38 +2379,17 @@ export const Dashboard = () => {
                   }}
                   className="btn-outline"
                   style={{
-                    justifyContent: 'flex-start',
-                    gap: '12px',
-                    padding: '12px 16px',
-                    fontSize: '14px',
+                    flex: '1 1 calc(50% - 5px)',
+                    justifyContent: 'center',
+                    gap: '8px',
+                    padding: '10px 16px',
+                    fontSize: '13px',
                     borderColor: user?.savedPosts?.includes(activePostOptions._id) ? 'var(--color-yellow-primary)' : 'rgba(255,255,255,0.08)',
                     color: user?.savedPosts?.includes(activePostOptions._id) ? 'var(--color-yellow-primary)' : '#ffffff'
                   }}
                 >
-                  <FiBookmark fill={user?.savedPosts?.includes(activePostOptions._id) ? 'var(--color-yellow-primary)' : 'none'} size={18} />
-                  {user?.savedPosts?.includes(activePostOptions._id) ? 'Remove from Saved' : 'Save / Bookmark'}
-                </button>
-
-                {/* Copy Link Option */}
-                <button
-                  onClick={() => {
-                    const shareUrl = `${window.location.origin}/dashboard/feed?post=${activePostOptions._id}`;
-                    navigator.clipboard.writeText(shareUrl);
-                    showNotification('Success', 'Post link copied to clipboard!', 'success');
-                    setActivePostOptions(null);
-                  }}
-                  className="btn-outline"
-                  style={{
-                    justifyContent: 'flex-start',
-                    gap: '12px',
-                    padding: '12px 16px',
-                    fontSize: '14px',
-                    borderColor: 'rgba(255,255,255,0.08)',
-                    color: '#ffffff'
-                  }}
-                >
-                  <FiCopy size={18} />
-                  Copy Post Link
+                  <FiBookmark fill={user?.savedPosts?.includes(activePostOptions._id) ? 'var(--color-yellow-primary)' : 'none'} size={16} />
+                  {user?.savedPosts?.includes(activePostOptions._id) ? 'Saved' : 'Save'}
                 </button>
               </div>
             </motion.div>

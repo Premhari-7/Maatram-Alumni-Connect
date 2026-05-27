@@ -1,10 +1,12 @@
 import express from 'express';
+import mongoose from 'mongoose';
 import User from '../models/User.js';
 import Post from '../models/Post.js';
 import Event from '../models/Event.js';
 import Notification from '../models/Notification.js';
+import Message from '../models/Message.js';
 import { authMiddleware, adminMiddleware } from '../middleware/auth.js';
-import { uploadToCloudinary } from '../middleware/cloudinary.js';
+import cloudinary, { uploadProfileMedia } from '../config/cloudinary.js';
 
 const router = express.Router();
 
@@ -76,6 +78,9 @@ router.get('/', authMiddleware, async (req, res) => {
     // Don't show the logged-in user in list
     query._id = { $ne: req.user.id };
 
+    // Only show verified users in the directory
+    // query.isVerified = true; // Removed
+
     if (search) {
       query.name = { $regex: search, $options: 'i' };
     }
@@ -120,7 +125,9 @@ router.get('/:id', authMiddleware, async (req, res) => {
     const isAdmin = req.user.role === 'admin';
     const isConnected = user.connections.some(conn => conn._id.toString() === req.user.id);
     
-    if (user.isPrivate && !isOwner && !isAdmin && !isConnected) {
+    const targetIsAdmin = user.role === 'admin';
+
+    if (user.isPrivate && !isOwner && !isAdmin && !isConnected && !targetIsAdmin) {
       // Create a masked copy of the user profile
       const maskedUser = user.toObject();
       maskedUser.email = '••••••••@••••.•••';
@@ -146,29 +153,27 @@ router.get('/:id', authMiddleware, async (req, res) => {
 });
 
 // Update profile details
-router.put('/profile', authMiddleware, async (req, res) => {
+router.put('/profile', authMiddleware, uploadProfileMedia.fields([{ name: 'avatar', maxCount: 1 }, { name: 'cover', maxCount: 1 }]), async (req, res) => {
   try {
-    const { avatar, cover, bio, skills, department, batch, company, jobTitle, gender, education, college, socialLinks, isPrivate, experience } = req.body;
+    const { bio, skills, department, batch, company, jobTitle, gender, education, college, socialLinks, isPrivate, experience } = req.body;
 
     const user = await User.findById(req.user.id);
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    // Update fields with Cloudinary direct base64 check
-    if (avatar !== undefined) {
-      if (avatar && avatar.startsWith('data:image/')) {
-        user.profile.avatar = await uploadToCloudinary(avatar, 'avatars');
-      } else {
-        user.profile.avatar = avatar;
-      }
+    // Update avatar from files or fallback to body if string passed
+    if (req.files && req.files['avatar'] && req.files['avatar'][0]) {
+      user.profile.avatar = req.files['avatar'][0].path || req.files['avatar'][0].secure_url;
+    } else if (req.body.avatar !== undefined) {
+      user.profile.avatar = req.body.avatar;
     }
-    if (cover !== undefined) {
-      if (cover && cover.startsWith('data:image/')) {
-        user.profile.cover = await uploadToCloudinary(cover, 'covers');
-      } else {
-        user.profile.cover = cover;
-      }
+
+    // Update cover from files or fallback to body if string passed
+    if (req.files && req.files['cover'] && req.files['cover'][0]) {
+      user.profile.cover = req.files['cover'][0].path || req.files['cover'][0].secure_url;
+    } else if (req.body.cover !== undefined) {
+      user.profile.cover = req.body.cover;
     }
     if (bio !== undefined) user.profile.bio = bio;
     if (skills !== undefined) {
@@ -199,21 +204,23 @@ router.put('/profile', authMiddleware, async (req, res) => {
 });
 
 // Upload profile avatar directly
-router.post('/upload-avatar', authMiddleware, async (req, res) => {
+router.post('/upload-avatar', authMiddleware, uploadProfileMedia.single('avatar'), async (req, res) => {
   try {
-    const { avatar } = req.body;
-    if (!avatar) {
-      return res.status(400).json({ message: 'Avatar data is required' });
-    }
-
     const user = await User.findById(req.user.id);
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    // Upload direct base64 to Cloudinary
-    const cloudinaryUrl = await uploadToCloudinary(avatar, 'avatars');
-    user.profile.avatar = cloudinaryUrl;
+    let avatarUrl = '';
+    if (req.file) {
+      avatarUrl = req.file.path || req.file.secure_url;
+    } else if (req.body.avatar) {
+      avatarUrl = req.body.avatar;
+    } else {
+      return res.status(400).json({ message: 'Avatar data is required' });
+    }
+
+    user.profile.avatar = avatarUrl;
     await user.save();
 
     const updatedUser = await User.findById(req.user.id).select('-password');
@@ -285,9 +292,8 @@ router.post('/connect/:id', authMiddleware, async (req, res) => {
 router.get('/admin/analytics', authMiddleware, adminMiddleware, async (req, res) => {
   try {
     const totalUsers = await User.countDocuments();
-    const studentsCount = await User.countDocuments({ role: 'student', isVerified: true });
-    const alumniCount = await User.countDocuments({ role: 'alumni', isVerified: true });
-    const unverifiedAlumniCount = await User.countDocuments({ role: { $in: ['alumni', 'student'] }, isVerified: false });
+    const studentsCount = await User.countDocuments({ role: 'student' });
+    const alumniCount = await User.countDocuments({ role: 'alumni' });
     const totalPosts = await Post.countDocuments();
     const totalEvents = await Event.countDocuments();
 
@@ -295,7 +301,6 @@ router.get('/admin/analytics', authMiddleware, adminMiddleware, async (req, res)
       totalUsers,
       studentsCount,
       alumniCount,
-      unverifiedAlumniCount,
       totalPosts,
       totalEvents
     });
@@ -314,46 +319,149 @@ router.get('/admin/users', authMiddleware, adminMiddleware, async (req, res) => 
   }
 });
 
-// Admin: Verify Alumni/Student
-router.post('/admin/verify/:id', authMiddleware, adminMiddleware, async (req, res) => {
+
+
+// Helper to extract cloudinary public ID
+const extractPublicId = (url) => {
+  if (!url) return null;
   try {
-    const user = await User.findById(req.params.id);
-    if (!user) {
-      return res.status(404).json({ message: 'User not found' });
-    }
-
-    if (user.role !== 'alumni' && user.role !== 'student') {
-      return res.status(400).json({ message: 'Only alumni and student accounts require verification' });
-    }
-
-    user.isVerified = true;
-    await user.save();
-
-    res.json({ message: `${user.role === 'alumni' ? 'Alumni' : 'Student'} account for ${user.name} has been successfully verified`, isVerified: true });
-  } catch (error) {
-    res.status(500).json({ message: 'Server error verifying user' });
+    // example url: https://res.cloudinary.com/cloud_name/image/upload/v1612345/maatram-alumniconnect/profiles/xyz.jpg
+    const parts = url.split('/');
+    const uploadIndex = parts.indexOf('upload');
+    if (uploadIndex === -1) return null;
+    
+    // Everything after /upload/v.../
+    const pathParts = parts.slice(uploadIndex + 2); 
+    const fullPath = pathParts.join('/');
+    
+    // Remove file extension
+    const lastDotIndex = fullPath.lastIndexOf('.');
+    if (lastDotIndex === -1) return fullPath;
+    return fullPath.substring(0, lastDotIndex);
+  } catch (err) {
+    return null;
   }
-});
+};
 
-// Admin: Delete/Ban User
+// Admin: Delete/Ban User (Deep Deletion Cascade)
 router.delete('/admin/delete/:id', authMiddleware, adminMiddleware, async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
   try {
-    const user = await User.findById(req.params.id);
+    const userId = req.params.id;
+    const user = await User.findById(userId).session(session);
+    
     if (!user) {
+      await session.abortTransaction();
+      session.endSession();
       return res.status(404).json({ message: 'User not found' });
     }
 
     if (user.role === 'admin') {
+      await session.abortTransaction();
+      session.endSession();
       return res.status(400).json({ message: 'Administrators cannot be deleted through this interface' });
     }
 
-    await User.findByIdAndDelete(req.params.id);
-    // Delete their posts too
-    await Post.deleteMany({ author: req.params.id });
+    // --- 1. Cloudinary Cleanup ---
+    try {
+      // 1a. User profile media
+      if (user.profile?.avatar) {
+        const publicId = extractPublicId(user.profile.avatar);
+        if (publicId) await cloudinary.uploader.destroy(publicId);
+      }
+      if (user.profile?.cover) {
+        const publicId = extractPublicId(user.profile.cover);
+        if (publicId) await cloudinary.uploader.destroy(publicId);
+      }
 
-    res.json({ message: 'User account and associated content successfully removed' });
+      // 1b. User posts media
+      const userPosts = await Post.find({ author: userId }).session(session);
+      for (const post of userPosts) {
+        if (post.image) {
+          const publicId = extractPublicId(post.image);
+          if (publicId) await cloudinary.uploader.destroy(publicId);
+        }
+      }
+
+      // 1c. User events media
+      const userEvents = await Event.find({ createdBy: userId }).session(session);
+      for (const event of userEvents) {
+        if (event.poster) {
+          const publicId = extractPublicId(event.poster);
+          if (publicId) await cloudinary.uploader.destroy(publicId);
+        }
+      }
+    } catch (cloudErr) {
+      console.warn('Cloudinary cleanup partially failed, continuing DB deletion:', cloudErr);
+    }
+
+    // --- 2. Database Deep Deletion ---
+    
+    // 2a. Delete their Posts
+    await Post.deleteMany({ author: userId }, { session });
+    
+    // 2b. Delete their Events
+    await Event.deleteMany({ createdBy: userId }, { session });
+    
+    // 2c. Delete their Messages (sent or received)
+    await Message.deleteMany({ $or: [{ sender: userId }, { recipient: userId }] }, { session });
+    
+    // 2d. Delete their Notifications
+    await Notification.deleteMany({ 
+      $or: [{ sender: userId }, { recipient: userId }, { relatedUser: userId }] 
+    }, { session });
+
+    // 2e. Remove them from other Users' connections arrays
+    await User.updateMany(
+      { connections: userId },
+      { $pull: { connections: userId } },
+      { session }
+    );
+
+    // 2f. Remove them from Event registrations
+    await Event.updateMany(
+      { registrations: userId },
+      { $pull: { registrations: userId } },
+      { session }
+    );
+
+    // 2g. Remove them from Post interactions (likes, reactions, comments)
+    await Post.updateMany(
+      {},
+      { 
+        $pull: { 
+          likes: userId,
+          comments: { user: userId }
+        }
+      },
+      { session }
+    );
+    // Remove from custom reactions array (Mongoose $pull matches subdocuments)
+    await Post.updateMany(
+      { "reactions.user": userId },
+      { $pull: { reactions: { user: userId } } },
+      { session }
+    );
+
+    // 2h. Finally, Delete the User
+    await User.findByIdAndDelete(userId).session(session);
+
+    await session.commitTransaction();
+    session.endSession();
+
+    console.log(`[Admin Activity] Deep deleted user: ${user.name} (${userId})`);
+
+    // Optional: We can emit a socket event here using a global io if available
+    // req.app.get('io')?.emit('user_deleted', { userId });
+
+    res.json({ message: 'User account and all associated data successfully removed' });
   } catch (error) {
-    res.status(500).json({ message: 'Server error deleting user' });
+    await session.abortTransaction();
+    session.endSession();
+    console.error('Deep Deletion Error:', error);
+    res.status(500).json({ message: 'Server error during deep deletion' });
   }
 });
 
