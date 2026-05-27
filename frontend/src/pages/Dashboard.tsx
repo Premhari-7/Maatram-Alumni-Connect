@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useAuth, API_URL, DEFAULT_AVATAR } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
 import { TreeAnimation } from '../components/TreeAnimation';
-import { FiUsers, FiFileText, FiCalendar, FiAward, FiPlus, FiHeart, FiMessageSquare, FiSend, FiBookmark, FiTrash2, FiShare2, FiCopy, FiLinkedin, FiTwitter, FiX, FiSearch, FiEdit3, FiCheck, FiThumbsUp, FiSmile, FiRepeat, FiSun, FiStar } from 'react-icons/fi';
+import { FiUsers, FiFileText, FiCalendar, FiAward, FiPlus, FiHeart, FiMessageSquare, FiSend, FiBookmark, FiTrash2, FiShare2, FiCopy, FiLinkedin, FiTwitter, FiX, FiSearch, FiEdit3, FiCheck, FiThumbsUp, FiSmile, FiRepeat, FiSun, FiStar, FiPlay } from 'react-icons/fi';
+import { ThumbsUp, PartyPopper, HeartHandshake, Lightbulb, Eye, Sparkles } from 'lucide-react';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
 import { UserProfilePopup } from '../components/UserProfilePopup';
@@ -74,12 +75,12 @@ interface Post {
 }
 
 const reactionConfig: Record<string, { icon: any, color: string, label: string }> = {
-  like: { icon: FiThumbsUp, color: '#3b82f6', label: 'Like' },
-  celebrate: { icon: FiAward, color: '#22c55e', label: 'Celebrate' },
-  support: { icon: FiStar, color: '#a855f7', label: 'Support' },
-  love: { icon: FiHeart, color: '#ef4444', label: 'Love' },
-  insightful: { icon: FiSun, color: '#eab308', label: 'Insightful' },
-  funny: { icon: FiSmile, color: '#f97316', label: 'Funny' },
+  like: { icon: ThumbsUp, color: '#3b82f6', label: 'Like' },
+  celebrate: { icon: PartyPopper, color: '#22c55e', label: 'Celebrate' },
+  support: { icon: HeartHandshake, color: '#a855f7', label: 'Support' },
+  insightful: { icon: Lightbulb, color: '#eab308', label: 'Insightful' },
+  interested: { icon: Eye, color: '#f97316', label: 'Interested' },
+  appreciate: { icon: Sparkles, color: '#ef4444', label: 'Appreciate' },
 };
 
 export const Dashboard = () => {
@@ -1270,7 +1271,16 @@ export const Dashboard = () => {
                       padding: '4px 0'
                     }}>
                       <div 
-                        style={{ position: 'relative' }}
+                        style={{
+                          position: 'relative',
+                          userSelect: 'none',
+                          WebkitTouchCallout: 'none',
+                          WebkitTapHighlightColor: 'transparent',
+                        }}
+                        onContextMenu={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                        }}
                         onMouseEnter={() => {
                           if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
                           hoverTimeoutRef.current = setTimeout(() => setHoveredPostIdForReactions(post._id), 300);
@@ -1279,15 +1289,26 @@ export const Dashboard = () => {
                           if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
                           hoverTimeoutRef.current = setTimeout(() => setHoveredPostIdForReactions(null), 300);
                         }}
-                        onTouchStart={() => {
+                        onTouchStart={(e) => {
                           if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
-                          hoverTimeoutRef.current = setTimeout(() => setHoveredPostIdForReactions(post._id), 400);
+                          hoverTimeoutRef.current = setTimeout(() => {
+                             setHoveredPostIdForReactions(post._id);
+                             hoverTimeoutRef.current = null;
+                          }, 500);
                         }}
-                        onTouchEnd={() => {
-                          if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+                        onTouchEnd={(e) => {
+                          if (hoverTimeoutRef.current) {
+                             clearTimeout(hoverTimeoutRef.current);
+                             hoverTimeoutRef.current = null;
+                          } else {
+                             if (hoveredPostIdForReactions === post._id) {
+                                 e.preventDefault(); 
+                             }
+                          }
                         }}
                         onTouchCancel={() => {
                           if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+                          setHoveredPostIdForReactions(null);
                         }}
                       >
                         <AnimatePresence>
@@ -1351,8 +1372,11 @@ export const Dashboard = () => {
                                       color: config.color,
                                       border: `1px solid ${config.color}40`
                                     }}>
-                                      <Icon size={20} fill={type === 'love' || type === 'support' || type === 'like' ? config.color : 'none'} />
+                                      <Icon size={20} strokeWidth={2} />
                                     </div>
+                                    <span style={{ fontSize: '11px', color: 'var(--color-text-gray)', fontWeight: 500 }}>
+                                      {config.label}
+                                    </span>
                                   </button>
                                 );
                               })}
@@ -1362,6 +1386,7 @@ export const Dashboard = () => {
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
+                            if (hoveredPostIdForReactions === post._id) return;
                             handleReact(post._id, userReaction || 'like');
                           }}
                           style={{
@@ -1373,10 +1398,11 @@ export const Dashboard = () => {
                             alignItems: 'center',
                             gap: '6px',
                             fontSize: '13px',
-                            fontWeight: 500
+                            fontWeight: 500,
+                            pointerEvents: 'auto'
                           }}
                         >
-                          {userReaction ? React.createElement(reactionConfig[userReaction].icon, { fill: userReaction === 'love' || userReaction === 'like' || userReaction === 'support' ? reactionConfig[userReaction].color : 'none', size: 18 }) : <FiThumbsUp size={18} />}
+                          {userReaction ? React.createElement(reactionConfig[userReaction].icon, { size: 18, strokeWidth: 2 }) : <ThumbsUp size={18} strokeWidth={2} />}
                           <span>{userReaction ? reactionConfig[userReaction].label : 'Like'}</span>
                         </button>
                       </div>

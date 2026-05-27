@@ -188,7 +188,7 @@ router.post('/like/:id', authMiddleware, async (req, res) => {
             recipient: post.author,
             sender: req.user.id,
             relatedPost: post._id,
-            type: { $in: ['like', 'celebrate', 'support', 'love', 'insightful', 'funny'] }
+            type: { $in: ['like', 'celebrate', 'support', 'insightful', 'interested', 'appreciate'] }
           });
         } catch (err) {
           console.error('Notification deletion failed on unlike:', err);
@@ -210,7 +210,7 @@ router.post('/like/:id', authMiddleware, async (req, res) => {
             recipient: post.author,
             sender: req.user.id,
             relatedPost: post._id,
-            type: { $in: ['like', 'celebrate', 'support', 'love', 'insightful', 'funny'] }
+            type: { $in: ['like', 'celebrate', 'support', 'insightful', 'interested', 'appreciate'] }
           });
           const likingUser = await User.findById(req.user.id);
           const notif = new Notification({
@@ -246,7 +246,7 @@ router.post('/like/:id', authMiddleware, async (req, res) => {
 router.post('/react/:id', authMiddleware, async (req, res) => {
   try {
     const { type } = req.body; 
-    if (!type || !['like', 'celebrate', 'support', 'love', 'insightful', 'funny'].includes(type)) {
+    if (!type || !['like', 'celebrate', 'support', 'insightful', 'interested', 'appreciate'].includes(type)) {
       return res.status(400).json({ message: 'Invalid reaction type' });
     }
 
@@ -284,7 +284,7 @@ router.post('/react/:id', authMiddleware, async (req, res) => {
               recipient: post.author,
               sender: req.user.id,
               relatedPost: post._id,
-              type: { $in: ['like', 'celebrate', 'support', 'love', 'insightful', 'funny'] }
+              type: { $in: ['like', 'celebrate', 'support', 'insightful', 'interested', 'appreciate'] }
             });
             const reactingUser = await User.findById(req.user.id);
             const notif = new Notification({
@@ -314,7 +314,7 @@ router.post('/react/:id', authMiddleware, async (req, res) => {
             recipient: post.author,
             sender: req.user.id,
             relatedPost: post._id,
-            type: { $in: ['like', 'celebrate', 'support', 'love', 'insightful', 'funny'] }
+            type: { $in: ['like', 'celebrate', 'support', 'insightful', 'interested', 'appreciate'] }
           });
           const reactingUser = await User.findById(req.user.id);
           const notif = new Notification({
