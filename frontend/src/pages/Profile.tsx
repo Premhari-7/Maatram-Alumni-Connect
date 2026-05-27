@@ -270,6 +270,36 @@ export const Profile = () => {
       const updatedAllPosts = all.map(updatePostObject);
       localStorage.setItem('mock_db_posts', JSON.stringify(updatedAllPosts));
     } else {
+      const updatePostObject = (p: Post): Post => {
+        if (p._id !== postId) return p;
+        const reactions = p.reactions ? [...p.reactions] : [];
+        const reactIdx = reactions.findIndex(r => {
+          const rUserId = typeof r.user === 'object' && r.user !== null ? ((r.user as any)._id || (r.user as any).id) : r.user;
+          return rUserId === userId;
+        });
+        const likeIdx = p.likes.findIndex(l => {
+          const lId = typeof l === 'object' && l !== null ? (l._id || l.id) : l;
+          return lId === userId;
+        });
+        let updatedLikes = [...p.likes];
+        if (reactIdx > -1) {
+          if (reactions[reactIdx].type === type) {
+            reactions.splice(reactIdx, 1);
+            if (likeIdx > -1) updatedLikes.splice(likeIdx, 1);
+          } else {
+            reactions[reactIdx] = { ...reactions[reactIdx], type, user: { _id: userId, name: userName, profile: { avatar: userAvatar } } };
+            if (likeIdx === -1) updatedLikes.push(userId);
+          }
+        } else {
+          reactions.push({ user: { _id: userId, name: userName, profile: { avatar: userAvatar } }, type });
+          if (likeIdx === -1) updatedLikes.push(userId);
+        }
+        return { ...p, reactions, likes: updatedLikes };
+      };
+
+      setPosts(prev => prev.map(updatePostObject));
+      setReposts(prev => prev.map(updatePostObject));
+
       try {
         const res = await axios.post(`${API_URL}/posts/react/${postId}`, { type }, {
           headers: { Authorization: `Bearer ${token}` }
@@ -1144,6 +1174,7 @@ export const Profile = () => {
           padding: '2px 4px'
         }}>
           <div 
+            role="button"
             style={{
               position: 'relative',
               userSelect: 'none',

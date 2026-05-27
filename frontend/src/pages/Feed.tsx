@@ -266,6 +266,30 @@ export const Feed = () => {
       setPosts(updated);
       localStorage.setItem('mock_db_posts', JSON.stringify(updated));
     } else {
+      const updatePostObject = (p: Post): Post => {
+        if (p._id !== postId) return p;
+        let updatedReactions = [...(p.reactions || [])];
+        let updatedLikes = [...p.likes];
+        const reactIdx = updatedReactions.findIndex(r => (typeof r.user === 'object' ? r.user._id === userId : r.user === userId));
+        const likeIdx = updatedLikes.findIndex(l => (typeof l === 'object' && l !== null ? (l._id || l.id) : l) === userId);
+
+        if (reactIdx > -1) {
+          if (updatedReactions[reactIdx].type === reactionType) {
+            updatedReactions.splice(reactIdx, 1);
+            if (likeIdx > -1) updatedLikes.splice(likeIdx, 1);
+          } else {
+            updatedReactions[reactIdx].type = reactionType;
+            if (likeIdx === -1) updatedLikes.push(userId as any);
+          }
+        } else {
+          updatedReactions.push({ user: { _id: userId } as any, type: reactionType });
+          if (likeIdx === -1) updatedLikes.push(userId as any);
+        }
+        return { ...p, reactions: updatedReactions, likes: updatedLikes };
+      };
+
+      setPosts(prev => prev.map(updatePostObject));
+
       try {
         const res = await axios.post(`${API_URL}/posts/react/${postId}`, { type: reactionType }, {
           headers: { Authorization: `Bearer ${token}` }
@@ -1015,6 +1039,7 @@ export const Feed = () => {
                   }}>
                     {/* Reaction Button with Hover Popup */}
                     <div 
+                      role="button"
                       style={{
                         position: 'relative',
                         userSelect: 'none',
