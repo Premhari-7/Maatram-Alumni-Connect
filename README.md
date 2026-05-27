@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="./frontend/public/logo.png" alt="Maatram Foundation Logo" width="120" />
+<img src="./frontend/public/logo.png" alt="Maatram Foundation Logo" width="180" />
 <br/>
 <img src="./frontend/public/readme-header.svg" alt="Maatram Alumni Connect Animated Banner" width="100%" />
 
