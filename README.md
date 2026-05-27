@@ -2,7 +2,7 @@
 
 <img src="./frontend/public/logo.png" alt="Maatram Foundation Logo" width="200" />
 
-# MAATRAM ALUMNI CONNECT
+<img src="https://readme-typing-svg.herokuapp.com?font=Inter&weight=800&size=30&pause=1000&color=000000&center=true&vCenter=true&width=600&lines=MAATRAM+ALUMNI+CONNECT;HACKFORGE+2.0+PROJECT;EMPOWERING+THE+COMMUNITY" alt="Typing SVG" />
 
 <p align="center">
   <a href="#overview">Overview</a> •
@@ -22,7 +22,7 @@
 
 <br/>
 
-*An enterprise-grade, real-time social networking platform built exclusively to unite and empower the alumni community.*
+*An enterprise-grade, real-time social networking platform originally developed as a project for the **Hackforge 2.0** hackathon conducted by the Maatram Foundation.*
 
 </div>
 
@@ -109,9 +109,14 @@ npm run dev
 
 <div align="center">
 <i>
-Please note that certain assets within this repository—including the organizational logo, brand name "Maatram Foundation", and specific foundational information—are the exclusive intellectual property of the Maatram Foundation. These elements are utilized herein strictly to support the development of their alumni network and are explicitly excluded from the open-source MIT License of this codebase. All rights, title, and interest regarding the foundation's identity remain solely with the Maatram Foundation.
+Please note that this software was developed during the Hackforge 2.0 Hackathon. Certain assets within this repository—including the organizational logo, brand name "Maatram Foundation", and specific foundational information—are the exclusive intellectual property of the Maatram Foundation. These elements are utilized herein strictly to support the development of their alumni network and are explicitly excluded from the open-source MIT License of this codebase. All rights, title, and interest regarding the foundation's identity remain solely with the Maatram Foundation.
 </i>
 </div>
 
-<br/>
-<p align="center">Crafted with precision by Prem Hari S.</p>
+---
+
+<div align="center">
+  <img src="https://img.shields.io/badge/TEAM-HACKFORGE%202.0-000000?style=for-the-badge" alt="Team Badge" />
+  <br/>
+  <b>Subaranjani KB • Kamalika devi G • Abitha boobathi • Sarasa A • Prem hari S</b>
+</div>
