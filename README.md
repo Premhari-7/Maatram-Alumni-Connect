@@ -111,7 +111,5 @@ Please note that this software was developed during the Hackforge 2.0 Hackathon.
 ---
 
 <div align="center">
-  <img src="https://img.shields.io/badge/TEAM-HACKFORGE%202.0-000000?style=for-the-badge" alt="Team Badge" />
-  <br/>
-  <b>Subaranjani KB • Kamalika devi G • Abitha boobathi • Sarasa A • Prem hari S</b>
+<img src="./frontend/public/readme-team.svg" alt="Team Members" width="100%" />
 </div>

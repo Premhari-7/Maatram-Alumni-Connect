@@ -1,0 +1,94 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 200" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bg-team" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0d0d0d"/>
+      <stop offset="100%" stop-color="#1a1a2e"/>
+    </linearGradient>
+    <linearGradient id="gold-t" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#FFD700"/>
+      <stop offset="100%" stop-color="#FFA500"/>
+    </linearGradient>
+    <linearGradient id="line-t" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="transparent"/>
+      <stop offset="50%" stop-color="#FFD700"/>
+      <stop offset="100%" stop-color="transparent"/>
+    </linearGradient>
+    <filter id="gl">
+      <feGaussianBlur stdDeviation="1.5" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <rect width="800" height="200" rx="12" fill="url(#bg-team)"/>
+
+  <!-- Title -->
+  <text x="400" y="35" font-family="'Segoe UI', system-ui, sans-serif" font-size="12" font-weight="600" fill="#666" text-anchor="middle" letter-spacing="6">HACKFORGE 2.0</text>
+
+  <rect x="300" y="45" width="200" height="1" fill="url(#line-t)" opacity="0.4">
+    <animate attributeName="width" values="150;200;150" dur="3s" repeatCount="indefinite"/>
+    <animate attributeName="x" values="325;300;325" dur="3s" repeatCount="indefinite"/>
+  </rect>
+
+  <text x="400" y="70" font-family="'Segoe UI', system-ui, sans-serif" font-size="16" font-weight="700" fill="#ffffff" text-anchor="middle" letter-spacing="3">TEAM MEMBERS</text>
+
+  <!-- Member 1: Prem hari S -->
+  <g opacity="0"><animate attributeName="opacity" values="0;1" dur="0.6s" begin="0.3s" fill="freeze"/>
+    <circle cx="120" cy="115" r="22" fill="none" stroke="url(#gold-t)" stroke-width="1.5" filter="url(#gl)">
+      <animate attributeName="stroke-dasharray" values="0,200;140,200" dur="1.5s" begin="0.3s" fill="freeze"/>
+    </circle>
+    <circle cx="120" cy="108" r="6" fill="#FFD700" opacity="0.7"/>
+    <path d="M108 130 C108 122 114 118 120 118 C126 118 132 122 132 130" fill="#FFD700" opacity="0.5"/>
+    <text x="120" y="155" font-family="'Segoe UI', system-ui, sans-serif" font-size="11" font-weight="600" fill="url(#gold-t)" text-anchor="middle">Prem hari S</text>
+    <text x="120" y="170" font-family="'Segoe UI', system-ui, sans-serif" font-size="9" fill="#666" text-anchor="middle">Lead Developer</text>
+  </g>
+
+  <!-- Member 2: Subaranjani KB -->
+  <g opacity="0"><animate attributeName="opacity" values="0;1" dur="0.6s" begin="0.6s" fill="freeze"/>
+    <circle cx="260" cy="115" r="22" fill="none" stroke="#00d2ff" stroke-width="1.5" filter="url(#gl)">
+      <animate attributeName="stroke-dasharray" values="0,200;140,200" dur="1.5s" begin="0.6s" fill="freeze"/>
+    </circle>
+    <circle cx="260" cy="108" r="6" fill="#00d2ff" opacity="0.7"/>
+    <path d="M248 130 C248 122 254 118 260 118 C266 118 272 122 272 130" fill="#00d2ff" opacity="0.5"/>
+    <text x="260" y="155" font-family="'Segoe UI', system-ui, sans-serif" font-size="11" font-weight="600" fill="#00d2ff" text-anchor="middle">Subaranjani KB</text>
+    <text x="260" y="170" font-family="'Segoe UI', system-ui, sans-serif" font-size="9" fill="#666" text-anchor="middle">Developer</text>
+  </g>
+
+  <!-- Member 3: Kamalika devi G -->
+  <g opacity="0"><animate attributeName="opacity" values="0;1" dur="0.6s" begin="0.9s" fill="freeze"/>
+    <circle cx="400" cy="115" r="22" fill="none" stroke="#a855f7" stroke-width="1.5" filter="url(#gl)">
+      <animate attributeName="stroke-dasharray" values="0,200;140,200" dur="1.5s" begin="0.9s" fill="freeze"/>
+    </circle>
+    <circle cx="400" cy="108" r="6" fill="#a855f7" opacity="0.7"/>
+    <path d="M388 130 C388 122 394 118 400 118 C406 118 412 122 412 130" fill="#a855f7" opacity="0.5"/>
+    <text x="400" y="155" font-family="'Segoe UI', system-ui, sans-serif" font-size="11" font-weight="600" fill="#a855f7" text-anchor="middle">Kamalika devi G</text>
+    <text x="400" y="170" font-family="'Segoe UI', system-ui, sans-serif" font-size="9" fill="#666" text-anchor="middle">Developer</text>
+  </g>
+
+  <!-- Member 4: Abitha boobathi -->
+  <g opacity="0"><animate attributeName="opacity" values="0;1" dur="0.6s" begin="1.2s" fill="freeze"/>
+    <circle cx="540" cy="115" r="22" fill="none" stroke="#f43f5e" stroke-width="1.5" filter="url(#gl)">
+      <animate attributeName="stroke-dasharray" values="0,200;140,200" dur="1.5s" begin="1.2s" fill="freeze"/>
+    </circle>
+    <circle cx="540" cy="108" r="6" fill="#f43f5e" opacity="0.7"/>
+    <path d="M528 130 C528 122 534 118 540 118 C546 118 552 122 552 130" fill="#f43f5e" opacity="0.5"/>
+    <text x="540" y="155" font-family="'Segoe UI', system-ui, sans-serif" font-size="11" font-weight="600" fill="#f43f5e" text-anchor="middle">Abitha boobathi</text>
+    <text x="540" y="170" font-family="'Segoe UI', system-ui, sans-serif" font-size="9" fill="#666" text-anchor="middle">Developer</text>
+  </g>
+
+  <!-- Member 5: Sarasa A -->
+  <g opacity="0"><animate attributeName="opacity" values="0;1" dur="0.6s" begin="1.5s" fill="freeze"/>
+    <circle cx="680" cy="115" r="22" fill="none" stroke="#22c55e" stroke-width="1.5" filter="url(#gl)">
+      <animate attributeName="stroke-dasharray" values="0,200;140,200" dur="1.5s" begin="1.5s" fill="freeze"/>
+    </circle>
+    <circle cx="680" cy="108" r="6" fill="#22c55e" opacity="0.7"/>
+    <path d="M668 130 C668 122 674 118 680 118 C686 118 692 122 692 130" fill="#22c55e" opacity="0.5"/>
+    <text x="680" y="155" font-family="'Segoe UI', system-ui, sans-serif" font-size="11" font-weight="600" fill="#22c55e" text-anchor="middle">Sarasa A</text>
+    <text x="680" y="170" font-family="'Segoe UI', system-ui, sans-serif" font-size="9" fill="#666" text-anchor="middle">Developer</text>
+  </g>
+
+  <!-- Bottom decorative line -->
+  <rect x="250" y="188" width="300" height="1" fill="url(#line-t)" opacity="0.3">
+    <animate attributeName="width" values="200;300;200" dur="4s" repeatCount="indefinite"/>
+    <animate attributeName="x" values="300;250;300" dur="4s" repeatCount="indefinite"/>
+  </rect>
+</svg>

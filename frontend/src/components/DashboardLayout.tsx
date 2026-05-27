@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Navigate, Outlet, useNavigate } from 'react-router-dom';
+import { Navigate, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth, API_URL, DEFAULT_AVATAR } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
 import { Sidebar } from './Sidebar';
@@ -32,6 +32,7 @@ export const DashboardLayout = () => {
   const { user, loading, logout, token, refreshUser } = useAuth();
   const isMockMode = false;
   const navigate = useNavigate();
+  const location = useLocation();
 
   // Notification states from SocketContext
   const socketCtx = useSocket();
@@ -545,10 +546,12 @@ export const DashboardLayout = () => {
         </main>
       </div>
 
-      {/* Floating AI Assistant Chatbot */}
-      <div className="chatbot-mobile-wrapper">
-        <AIChatbot />
-      </div>
+      {/* Floating AI Assistant Chatbot - Only on Dashboard Home */}
+      {location.pathname === '/dashboard' && (
+        <div className="chatbot-mobile-wrapper">
+          <AIChatbot />
+        </div>
+      )}
 
       {/* Connection sender profile popup preview */}
       {selectedPreviewUserId && (
