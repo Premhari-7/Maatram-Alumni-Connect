@@ -26,3 +26,29 @@ Thumbs.db
 # Custom Antigravity / Brain files
 .gemini/
 brain/
+
+# Logs
+logs
+*.log
+
+# Runtime data
+pids
+*.pid
+*.seed
+
+# Coverage
+coverage/
+
+# Temporary files
+tmp/
+temp/
+
+# Cache
+.cache/
+.parcel-cache/
+
+# Vercel
+.vercel/
+
+# Render
+.render/
